@@ -1,0 +1,135 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@import "@fontsource-variable/geist";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme {
+  --color-primary: #c3f400;
+  --color-primary-foreground: #000000;
+  
+  --color-secondary: #adc6ff;
+  --color-secondary-foreground: #000000;
+
+  --color-background: #111508;
+  --color-foreground: #ffffff;
+  
+  --color-surface: #161616;
+  
+  --color-card: #1e2113;
+  --color-card-foreground: #ffffff;
+  
+  --color-popover: #1e2113;
+  --color-popover-foreground: #ffffff;
+  
+  --color-border: #262626;
+  --color-input: #262626;
+  --color-ring: #c3f400;
+  
+  --color-muted: #262626;
+  --color-muted-foreground: #a3a3a3;
+  
+  --color-accent: #262626;
+  --color-accent-foreground: #ffffff;
+  
+  --color-destructive: #ff0000;
+  --color-destructive-foreground: #ffffff;
+
+  --font-heading: "Montserrat", sans-serif;
+  --font-body: "Inter", sans-serif;
+  --font-sans: "Inter", sans-serif;
+
+  --radius-sm: 0.25rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+}
+
+@layer base {
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-body);
+    font-feature-settings: "rlig" 1, "calt" 1;
+    @apply bg-background text-foreground;
+    scrollbar-gutter: stable;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-heading);
+  }
+  
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  ::selection {
+    background-color: var(--color-primary);
+    color: var(--color-primary-foreground);
+  }
+
+  
+  html {
+    @apply font-sans;
+    scrollbar-gutter: stable;
+  }
+
+  /* Personalización del Scrollbar */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #262626;
+    border-radius: 10px;
+    border: 2px solid var(--color-background);
+    transition: background 0.3s ease;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--color-primary);
+  }
+
+  /* Ocultar flechas nativas en inputs de tipo número */
+  input[type="number"]::-webkit-outer-spin-button,
+  input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  input[type="number"] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
+
+  /* Firefox */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #262626 transparent;
+  }
+
+  :root {
+    --color-primary-rgb: 195, 244, 0;
+  }
+
+  .premium-input-ghost {
+    background-color: transparent !important;
+    border: none !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+    transition: all 0.3s ease !important;
+    box-shadow: none !important;
+    outline: none !important;
+  }
+
+  .premium-input-ghost:focus {
+    text-shadow: 0 0 8px rgba(var(--color-primary-rgb), 0.3);
+  }
+
+}

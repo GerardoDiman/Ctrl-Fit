@@ -1,0 +1,40 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import { WorkoutStats } from '@/components/dashboard/WorkoutStats';
+import { NextWorkout } from '@/components/dashboard/NextWorkout';
+import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
+---
+
+<script>
+	import { supabase } from '@/lib/supabase';
+	
+	// Check auth state
+	supabase.auth.getSession().then(({ data: { session } }) => {
+		if (!session) {
+			window.location.href = '/auth';
+		}
+	});
+
+	// Listen for auth changes (e.g. if user logs out from another tab)
+	supabase.auth.onAuthStateChange((event, session) => {
+		if (event === 'SIGNED_OUT' || !session) {
+			window.location.href = '/auth';
+		}
+	});
+</script>
+
+<Layout title="Dashboard | Ctrl + Fit">
+	<div class="container mx-auto px-4 max-w-5xl">
+		<header class="mb-8">
+			<h1 class="text-3xl font-bold font-heading">Tu Rendimiento</h1>
+			<p class="text-gray-400">Resumen de la semana actual.</p>
+		</header>
+
+		<!-- Stats Grid Dinámico -->
+		<WorkoutStats client:load />
+
+		<!-- Rutina Actual Skeleton -->
+		<h2 class="text-xl font-bold font-heading mb-4 border-b border-[var(--color-border)] pb-2">Siguiente Entrenamiento</h2>
+		<NextWorkout client:load />
+	</div>
+</Layout>

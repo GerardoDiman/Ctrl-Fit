@@ -1,0 +1,32 @@
+---
+import { Navbar } from '../components/Navbar';
+import '../styles/global.css';
+
+interface Props {
+	title?: string;
+}
+
+const { title = "Ctrl + Fit | Alto Rendimiento" } = Astro.props;
+---
+
+<!doctype html>
+<html lang="es" class="dark">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width" />
+		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+		<meta name="generator" content={Astro.generator} />
+		<title>{title}</title>
+		
+		<!-- Google Fonts: Montserrat (Heading) e Inter (Body) -->
+		<link rel="preconnect" href="https://fonts.googleapis.com">
+		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+		<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Montserrat:wght@600;700;800&display=swap" rel="stylesheet">
+	</head>
+	<body class="h-screen flex flex-col overflow-hidden bg-[var(--color-background)] text-[var(--color-foreground)] antialiased">
+		<Navbar client:load />
+		<main class="flex-1 overflow-y-auto" style="scrollbar-gutter: stable;">
+			<slot />
+		</main>
+	</body>
+</html>
