@@ -23,7 +23,7 @@ export const NextWorkout = () => {
             id
           )
         `)
-        .eq('user_id', session.user.id)
+        .eq('student_id', session.user.id)
         .order('created_at', { ascending: false })
         .limit(1)
         .single();

@@ -36,6 +36,8 @@ export const WorkoutSession = () => {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [creationDate, setCreationDate] = useState<string>(new Date().toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' }));
   const [isNewRoutine, setIsNewRoutine] = useState(true);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [currentRoutineId, setCurrentRoutineId] = useState<string | null>(null);
 
   // Timer logic
   useEffect(() => {
@@ -54,8 +56,12 @@ export const WorkoutSession = () => {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const routineId = params.get('routineId');
+    const edit = params.get('edit') === 'true';
 
     if (routineId) {
+      setCurrentRoutineId(routineId);
+      setIsEditMode(edit);
+      
       const loadRoutine = async () => {
         const { data: routine, error } = await supabase
           .from('routines')
@@ -66,6 +72,8 @@ export const WorkoutSession = () => {
               exercise_id,
               sets,
               reps,
+              weight,
+              sets_data,
               exercises (name)
             )
           `)
@@ -75,16 +83,27 @@ export const WorkoutSession = () => {
         if (!error && routine) {
           setRoutineName(routine.name);
           setCreationDate(new Date(routine.created_at).toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' }));
-          setIsNewRoutine(false);
-          const mappedExercises = routine.routine_exercises.map((re: any) => ({
-            id: re.exercise_id,
-            name: re.exercises.name,
-            sets: Array.from({ length: re.sets || 1 }).map(() => ({
-              weight: '',
-              reps: re.reps?.toString() || '',
-              completed: false
-            }))
-          }));
+          setIsNewRoutine(!edit); // Si estamos editando, no es una "nueva" rutina visualmente en el mismo sentido
+          
+          const mappedExercises = routine.routine_exercises.map((re: any) => {
+            const sets = re.sets_data && Array.isArray(re.sets_data) && re.sets_data.length > 0
+              ? re.sets_data.map((s: any) => ({
+                  weight: s.weight?.toString() || '',
+                  reps: s.reps?.toString() || '',
+                  completed: false
+                }))
+              : Array.from({ length: re.sets || 1 }).map(() => ({
+                  weight: re.weight?.toString() || '',
+                  reps: re.reps?.toString() || '',
+                  completed: false
+                }));
+
+            return {
+              id: re.exercise_id,
+              name: re.exercises.name,
+              sets
+            };
+          });
           setSessionExercises(mappedExercises);
         }
       };
@@ -136,31 +155,70 @@ export const WorkoutSession = () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error('No session');
 
-      const { data: routine, error: routineError } = await supabase
-        .from('routines')
-        .insert({
-          user_id: session.user.id,
-          name: routineName,
-          description: 'Rutina programada desde el panel'
-        })
-        .select()
-        .single();
+      let routineIdToUse = currentRoutineId;
 
-      if (routineError) throw routineError;
+      if (isEditMode && routineIdToUse) {
+        // Actualizar rutina existente
+        const { error: routineError } = await supabase
+          .from('routines')
+          .update({
+            name: routineName,
+            description: 'Rutina actualizada desde el panel'
+          })
+          .eq('id', routineIdToUse);
 
-      const routineEx = sessionExercises.map((ex, idx) => ({
-        routine_id: routine.id,
-        exercise_id: ex.id,
-        order_index: idx,
-        sets: ex.sets.length,
-        reps: parseInt(ex.sets[0]?.reps) || 0
-      }));
+        if (routineError) throw routineError;
 
-      await supabase.from('routine_exercises').insert(routineEx);
-      alert('Rutina guardada correctamente.');
+        // Limpiar ejercicios anteriores para re-insertar (sincronización simple)
+        await supabase.from('routine_exercises').delete().eq('routine_id', routineIdToUse);
+      } else {
+        // Crear nueva rutina
+        const { data: routine, error: routineError } = await supabase
+          .from('routines')
+          .insert({
+            trainer_id: session.user.id,
+            student_id: session.user.id,
+            name: routineName,
+            description: 'Rutina programada desde el panel'
+          })
+          .select()
+          .single();
+
+        if (routineError) throw routineError;
+        routineIdToUse = routine.id;
+      }
+
+      // Insertar los ejercicios (nuevos o actualizados)
+      const routineEx = sessionExercises.map((ex, idx) => {
+        const repsValue = parseInt(ex.sets[0]?.reps);
+        const weightValue = parseFloat(ex.sets[0]?.weight);
+        return {
+          routine_id: routineIdToUse,
+          exercise_id: ex.id,
+          order_index: idx,
+          sets: ex.sets.length,
+          reps: isNaN(repsValue) ? 0 : repsValue,
+          weight: isNaN(weightValue) ? 0 : weightValue,
+          sets_data: ex.sets.map(s => ({
+            reps: parseInt(s.reps) || 0,
+            weight: parseFloat(s.weight) || 0
+          }))
+        };
+      });
+
+      console.log('Insertando ejercicios:', routineEx);
+      const { error: exercisesError } = await supabase.from('routine_exercises').insert(routineEx);
+      
+      if (exercisesError) {
+        console.error('Error al insertar ejercicios:', exercisesError);
+        throw exercisesError;
+      }
+
+      alert(isEditMode ? 'Rutina actualizada correctamente.' : 'Rutina guardada correctamente.');
       window.location.href = '/dashboard';
     } catch (error) {
-      console.error('Error:', error);
+      console.error('Error completo en saveRoutine:', error);
+      alert('Error al guardar: ' + (error as any).message);
       setStatus('planning');
     }
   };
@@ -221,6 +279,18 @@ export const WorkoutSession = () => {
     setSessionExercises(updated);
   };
 
+  const removeSet = (exIdx: number, sIdx: number) => {
+    const updated = [...sessionExercises];
+    if (updated[exIdx].sets.length > 1) {
+      const exercise = { ...updated[exIdx] };
+      exercise.sets = exercise.sets.filter((_, i) => i !== sIdx);
+      updated[exIdx] = exercise;
+      setSessionExercises(updated);
+    } else {
+      alert('Un ejercicio debe tener al menos una serie. Si deseas quitar el ejercicio completo, usa el botón de eliminar de arriba.');
+    }
+  };
+
   return (
     <div className="space-y-6 pb-20">
       {/* Dynamic Header */}
@@ -244,7 +314,9 @@ export const WorkoutSession = () => {
                 </span>
                 <div className="flex items-center gap-1.5">
                   <CalendarIcon className="h-3 w-3" />
-                  <span>{isNewRoutine ? 'Nueva Rutina - Hoy' : `Programado: ${creationDate}`}</span>
+                  <span>
+                    {isEditMode ? `Editando: ${routineName}` : (isNewRoutine ? 'Nueva Rutina - Hoy' : `Programado: ${creationDate}`)}
+                  </span>
                 </div>
               </div>
             </div>
@@ -269,7 +341,7 @@ export const WorkoutSession = () => {
             {status === 'planning' ? (
               <>
                 <Button variant="outline" className="flex-1" onClick={saveRoutine}>
-                  <Save className="mr-2 h-4 w-4" /> Programar
+                  <Save className="mr-2 h-4 w-4" /> {isEditMode ? 'Actualizar' : 'Programar'}
                 </Button>
                 <Button className="flex-1 bg-primary text-black font-bold" onClick={startWorkout}>
                   <Play className="mr-2 h-4 w-4 fill-current" /> Iniciar
@@ -304,7 +376,15 @@ export const WorkoutSession = () => {
                 <CardTitle>{ex.name}</CardTitle>
               </div>
               {status === 'planning' && (
-                <Button variant="ghost" size="icon" onClick={() => setSessionExercises(sessionExercises.filter((_, i) => i !== exIdx))}>
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  onClick={() => {
+                    if (window.confirm('¿Estás seguro de que deseas eliminar este ejercicio de la rutina?')) {
+                      setSessionExercises(sessionExercises.filter((_, i) => i !== exIdx));
+                    }
+                  }}
+                >
                   <Trash2 className="h-5 w-5 text-gray-500 hover:text-red-500" />
                 </Button>
               )}
@@ -326,12 +406,21 @@ export const WorkoutSession = () => {
                     <Input type="number" value={set.reps} onChange={(e) => updateSet(exIdx, setIdx, 'reps', e.target.value)} className="text-center bg-black/40 h-10" placeholder="0" />
                   </div>
                   <div className="col-span-2 flex justify-center">
-                    <button 
-                      className={`h-10 w-10 rounded-full border-2 flex items-center justify-center transition-all ${set.completed ? 'bg-primary border-primary text-black' : 'border-white/10'}`}
-                      onClick={() => updateSet(exIdx, setIdx, 'completed', !set.completed)}
-                    >
-                      <Check className="h-5 w-5" />
-                    </button>
+                    {status === 'planning' ? (
+                      <button 
+                        className="h-10 w-10 rounded-full border-2 border-white/10 flex items-center justify-center transition-all hover:bg-red-500/20 hover:border-red-500/50 text-gray-500 hover:text-red-500"
+                        onClick={() => removeSet(exIdx, setIdx)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    ) : (
+                      <button 
+                        className={`h-10 w-10 rounded-full border-2 flex items-center justify-center transition-all ${set.completed ? 'bg-primary border-primary text-black' : 'border-white/10'}`}
+                        onClick={() => updateSet(exIdx, setIdx, 'completed', !set.completed)}
+                      >
+                        <Check className="h-5 w-5" />
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}
