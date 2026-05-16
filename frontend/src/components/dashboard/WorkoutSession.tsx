@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/lib/useAuth';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -38,6 +39,16 @@ export const WorkoutSession = () => {
   const [isNewRoutine, setIsNewRoutine] = useState(true);
   const [isEditMode, setIsEditMode] = useState(false);
   const [currentRoutineId, setCurrentRoutineId] = useState<string | null>(null);
+  
+  // Auth and Roles
+  const { profile } = useAuth();
+  const isTrainer = profile?.role === 'trainer' || profile?.role === 'owner';
+
+  // New Exercise Creation
+  const [isCreatingExercise, setIsCreatingExercise] = useState(false);
+  const [newExerciseName, setNewExerciseName] = useState('');
+  const [selectedMuscleGroup, setSelectedMuscleGroup] = useState('');
+  const [muscleGroups, setMuscleGroups] = useState<{id: string, name: string}[]>([]);
 
   // Timer logic
   useEffect(() => {
@@ -121,6 +132,12 @@ export const WorkoutSession = () => {
       if (!error && data) setExercises(data);
     };
     fetchExercises();
+
+    const fetchMuscleGroups = async () => {
+      const { data, error } = await supabase.from('muscle_groups').select('id, name');
+      if (!error && data) setMuscleGroups(data);
+    };
+    fetchMuscleGroups();
   }, []);
 
   const formatTime = (seconds: number) => {
@@ -261,6 +278,38 @@ export const WorkoutSession = () => {
     } catch (error) {
       console.error('Error:', error);
       setStatus('active');
+    }
+  };
+
+  const handleCreateNewExercise = async () => {
+    if (!newExerciseName.trim()) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from('exercises')
+        .insert({
+          name: newExerciseName,
+          muscle_group_id: selectedMuscleGroup || null
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Actualizar lista local de ejercicios
+      setExercises(prev => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)));
+      
+      // Añadir a la sesión actual
+      addExercise(data);
+      
+      // Limpiar y cerrar
+      setNewExerciseName('');
+      setSelectedMuscleGroup('');
+      setIsCreatingExercise(false);
+      setShowExerciseSelector(false);
+    } catch (error) {
+      console.error('Error creating exercise:', error);
+      alert('Error al crear el ejercicio. Verifica que tengas permisos de entrenador.');
     }
   };
 
@@ -448,17 +497,79 @@ export const WorkoutSession = () => {
           <Card className="w-full max-w-lg border-primary bg-zinc-950">
             <CardHeader>
               <div className="flex justify-between items-center">
-                <CardTitle>Añadir Ejercicio</CardTitle>
-                <Button variant="ghost" onClick={() => setShowExerciseSelector(false)}>X</Button>
+                <CardTitle>{isCreatingExercise ? 'Crear Nuevo Ejercicio' : 'Añadir Ejercicio'}</CardTitle>
+                <Button variant="ghost" onClick={() => {
+                  setShowExerciseSelector(false);
+                  setIsCreatingExercise(false);
+                }}>X</Button>
               </div>
-              <Input placeholder="Buscar..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="mt-4" />
+              {!isCreatingExercise && (
+                <Input placeholder="Buscar ejercicio..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="mt-4" />
+              )}
             </CardHeader>
             <CardContent className="max-h-96 overflow-y-auto">
-              {exercises.filter(e => e.name.toLowerCase().includes(searchTerm.toLowerCase())).map(e => (
-                <Button key={e.id} variant="ghost" className="w-full justify-start h-12" onClick={() => addExercise(e)}>
-                  {e.name}
-                </Button>
-              ))}
+              {isCreatingExercise ? (
+                <div className="space-y-4 py-2">
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-gray-500 uppercase">Nombre del Ejercicio</label>
+                    <Input 
+                      placeholder="Ej: Press de Banca Inclinado" 
+                      value={newExerciseName} 
+                      onChange={(e) => setNewExerciseName(e.target.value)} 
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-gray-500 uppercase">Grupo Muscular (Opcional)</label>
+                    <select 
+                      className="w-full bg-black/40 border border-white/10 rounded-md h-10 px-3 text-sm focus:ring-1 focus:ring-primary outline-none"
+                      value={selectedMuscleGroup}
+                      onChange={(e) => setSelectedMuscleGroup(e.target.value)}
+                    >
+                      <option value="">Seleccionar...</option>
+                      {muscleGroups.map(mg => (
+                        <option key={mg.id} value={mg.id}>{mg.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="flex gap-2 pt-4">
+                    <Button variant="outline" className="flex-1" onClick={() => setIsCreatingExercise(false)}>
+                      Cancelar
+                    </Button>
+                    <Button className="flex-1 bg-primary text-black font-bold" onClick={handleCreateNewExercise}>
+                      Guardar y Añadir
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="space-y-1 mb-4">
+                    {exercises
+                      .filter(e => e.name.toLowerCase().includes(searchTerm.toLowerCase()))
+                      .map(e => (
+                        <Button key={e.id} variant="ghost" className="w-full justify-start h-12 hover:bg-primary/10 hover:text-primary transition-colors" onClick={() => addExercise(e)}>
+                          {e.name}
+                        </Button>
+                      ))
+                    }
+                    {exercises.filter(e => e.name.toLowerCase().includes(searchTerm.toLowerCase())).length === 0 && (
+                      <div className="text-center py-8 text-gray-500">
+                        <p>No se encontraron ejercicios.</p>
+                      </div>
+                    )}
+                  </div>
+                  
+                  {isTrainer && (
+                    <div className="border-t border-white/10 pt-4 mt-2">
+                      <Button 
+                        className="w-full bg-primary/10 border border-primary/20 text-primary hover:bg-primary hover:text-black font-bold transition-all"
+                        onClick={() => setIsCreatingExercise(true)}
+                      >
+                        <Plus className="mr-2 h-4 w-4" /> Crear "{searchTerm || 'Nuevo Ejercicio'}"
+                      </Button>
+                    </div>
+                  )}
+                </>
+              )}
             </CardContent>
           </Card>
         </div>
