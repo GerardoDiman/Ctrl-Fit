@@ -20,12 +20,16 @@ export function RoutineCalendar({ studentId, trainerId }: RoutineCalendarProps) 
   // State for the "Assign Routine" modal/overlay
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [viewingRoutine, setViewingRoutine] = useState<any | null>(null);
 
   useEffect(() => {
-    fetchData();
-  }, [studentId, currentDate]);
+    if (studentId && trainerId) {
+      fetchData();
+    }
+  }, [studentId, trainerId, currentDate]);
 
   const fetchData = async () => {
+    if (!studentId || !trainerId) return;
     setLoading(true);
     
     // 1. Fetch assignments for this month
@@ -42,12 +46,23 @@ export function RoutineCalendar({ studentId, trainerId }: RoutineCalendarProps) 
     // 2. Fetch available routine templates
     const { data: routineData } = await supabase
       .from('routines')
-      .select('*')
+      .select('*, routine_exercises(id)')
       .eq('trainer_id', trainerId)
       .is('student_id', null);
 
     if (assignData) setAssignments(assignData);
-    if (routineData) setAvailableRoutines(routineData);
+    if (routineData) {
+      // For each routine, fetch its exercises for preview
+      const routinesWithExercises = await Promise.all(routineData.map(async (r: any) => {
+        const { data: exercises } = await supabase
+          .from('routine_exercises')
+          .select('*, exercises(name)')
+          .eq('routine_id', r.id)
+          .order('order_index');
+        return { ...r, exercises: exercises || [] };
+      }));
+      setAvailableRoutines(routinesWithExercises);
+    }
     setLoading(false);
   };
 
@@ -183,29 +198,66 @@ export function RoutineCalendar({ studentId, trainerId }: RoutineCalendarProps) 
                 </Button>
               </div>
 
-              <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+              <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
                 {availableRoutines.length === 0 ? (
                   <div className="text-center py-8 text-gray-500 italic">
                     No tienes rutinas prefabricadas.
                     <br />
                     <a href="/dashboard/management" className="text-primary text-xs hover:underline mt-2 inline-block">Crear rutinas en Gestión</a>
                   </div>
+                ) : viewingRoutine ? (
+                  <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
+                    <Button variant="ghost" size="sm" onClick={() => setViewingRoutine(null)} className="flex items-center gap-2 text-gray-400 hover:text-white mb-2">
+                      <ChevronLeft className="h-4 w-4" /> Volver a la lista
+                    </Button>
+                    <div className="bg-white/5 rounded-xl p-4 border border-white/10">
+                      <h4 className="font-bold text-primary mb-1">{viewingRoutine.name}</h4>
+                      <p className="text-xs text-gray-400 mb-4">{viewingRoutine.description || 'Sin descripción'}</p>
+                      
+                      <div className="space-y-2">
+                        {viewingRoutine.exercises.map((ex: any, i: number) => (
+                          <div key={i} className="flex justify-between items-center p-2 rounded bg-black/40 text-xs border border-white/5">
+                            <span className="font-medium">{ex.exercises.name}</span>
+                            <span className="text-gray-500">{ex.sets}x{ex.reps} {ex.weight && `• ${ex.weight}kg`}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <Button className="w-full bg-primary text-black font-bold" onClick={() => handleAssign(viewingRoutine.id)}>
+                      Asignar esta Rutina
+                    </Button>
+                  </div>
                 ) : (
                   availableRoutines.map(r => (
-                    <button
+                    <div
                       key={r.id}
-                      onClick={() => handleAssign(r.id)}
-                      className="w-full flex items-center justify-between p-3 rounded-lg border border-white/5 bg-white/5 hover:border-primary/50 hover:bg-primary/5 transition-all text-left"
+                      className="w-full flex items-center justify-between p-3 rounded-xl border border-white/5 bg-white/5 hover:border-primary/50 hover:bg-primary/5 transition-all text-left group"
                     >
-                      <span className="font-medium text-sm">{r.name}</span>
-                      <Plus className="h-4 w-4 text-primary" />
-                    </button>
+                      <div className="flex flex-col flex-1 cursor-pointer" onClick={() => setViewingRoutine(r)}>
+                        <span className="font-bold text-sm group-hover:text-primary transition-colors">{r.name}</span>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="text-[10px] text-gray-500 uppercase font-bold">{r.exercises?.length || 0} EJERCICIOS</span>
+                          {r.description && <span className="text-[10px] text-gray-600 truncate max-w-[150px]">• {r.description}</span>}
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-primary/20 hover:text-primary" onClick={() => setViewingRoutine(r)}>
+                          <ChevronRight className="h-4 w-4" />
+                        </Button>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-primary/20 hover:text-primary" onClick={() => handleAssign(r.id)}>
+                          <Plus className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
                   ))
                 )}
               </div>
 
               <div className="mt-6 pt-6 border-t border-white/5">
-                <Button variant="outline" className="w-full" onClick={() => setShowAssignModal(false)}>
+                <Button variant="outline" className="w-full" onClick={() => {
+                  setShowAssignModal(false);
+                  setViewingRoutine(null);
+                }}>
                   Cancelar
                 </Button>
               </div>

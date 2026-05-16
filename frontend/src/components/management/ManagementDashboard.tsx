@@ -4,11 +4,12 @@ import { useAuth } from '@/lib/useAuth';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Plus, Trash2, Edit2, Check, X, Search, Dumbbell, Layers, Cpu, Settings } from 'lucide-react';
+import { Plus, Trash2, Edit2, Check, X, Search, Dumbbell, Layers, Cpu, Settings, ScrollText } from 'lucide-react';
+import { RoutineManagement } from './RoutineManagement';
 
 export function ManagementDashboard() {
   const { profile, loading: authLoading } = useAuth();
-  const [activeTab, setActiveTab] = useState<'exercises' | 'muscle_groups' | 'machines'>('exercises');
+  const [activeTab, setActiveTab] = useState<'exercises' | 'muscle_groups' | 'machines' | 'routines'>('exercises');
   const [loading, setLoading] = useState(true);
   
   const [exercises, setExercises] = useState<any[]>([]);
@@ -124,6 +125,7 @@ export function ManagementDashboard() {
           { id: 'exercises', label: 'Ejercicios', icon: Dumbbell },
           { id: 'muscle_groups', label: 'Músculos', icon: Layers },
           { id: 'machines', label: 'Máquinas', icon: Cpu },
+          { id: 'routines', label: 'Rutinas', icon: ScrollText },
         ].map((tab) => (
           <button
             key={tab.id}
@@ -143,135 +145,139 @@ export function ManagementDashboard() {
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Panel Izquierdo: Crear */}
-        <Card className="bg-zinc-950 border-white/5 lg:col-span-1 h-fit">
-          <CardHeader>
-            <CardTitle className="text-lg">Nuevo {activeTab === 'exercises' ? 'Ejercicio' : activeTab === 'muscle_groups' ? 'Grupo Muscular' : 'Máquina'}</CardTitle>
-            <CardDescription>Completa los campos para añadir al catálogo.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <label className="text-xs font-bold text-gray-500 uppercase">Nombre</label>
-              <Input 
-                placeholder="Ej: Press Militar" 
-                value={newItemName} 
-                onChange={(e) => setNewItemName(e.target.value)} 
-              />
-            </div>
-            
-            {activeTab === 'exercises' && (
-              <>
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-gray-500 uppercase">Grupo Muscular</label>
-                  <select 
-                    className="w-full bg-black/40 border border-white/10 rounded-md h-10 px-3 text-sm focus:ring-1 focus:ring-primary outline-none"
-                    value={selectedMuscleGroupId}
-                    onChange={(e) => setSelectedMuscleGroupId(e.target.value)}
-                  >
-                    <option value="">Seleccionar...</option>
-                    {muscleGroups.map(mg => (
-                      <option key={mg.id} value={mg.id}>{mg.name}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-gray-500 uppercase">Máquina (Opcional)</label>
-                  <select 
-                    className="w-full bg-black/40 border border-white/10 rounded-md h-10 px-3 text-sm focus:ring-1 focus:ring-primary outline-none"
-                    value={selectedMachineId}
-                    onChange={(e) => setSelectedMachineId(e.target.value)}
-                  >
-                    <option value="">Ninguna / Peso Libre</option>
-                    {machines.map(m => (
-                      <option key={m.id} value={m.id}>{m.name}</option>
-                    ))}
-                  </select>
-                </div>
-              </>
-            )}
+      {activeTab === 'routines' ? (
+        <RoutineManagement />
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Panel Izquierdo: Crear */}
+          <Card className="bg-zinc-950 border-white/5 lg:col-span-1 h-fit">
+            <CardHeader>
+              <CardTitle className="text-lg">Nuevo {activeTab === 'exercises' ? 'Ejercicio' : activeTab === 'muscle_groups' ? 'Grupo Muscular' : 'Máquina'}</CardTitle>
+              <CardDescription>Completa los campos para añadir al catálogo.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-gray-500 uppercase">Nombre</label>
+                <Input 
+                  placeholder="Ej: Press Militar" 
+                  value={newItemName} 
+                  onChange={(e) => setNewItemName(e.target.value)} 
+                />
+              </div>
+              
+              {activeTab === 'exercises' && (
+                <>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-gray-500 uppercase">Grupo Muscular</label>
+                    <select 
+                      className="w-full bg-black/40 border border-white/10 rounded-md h-10 px-3 text-sm focus:ring-1 focus:ring-primary outline-none"
+                      value={selectedMuscleGroupId}
+                      onChange={(e) => setSelectedMuscleGroupId(e.target.value)}
+                    >
+                      <option value="">Seleccionar...</option>
+                      {muscleGroups.map(mg => (
+                        <option key={mg.id} value={mg.id}>{mg.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-gray-500 uppercase">Máquina (Opcional)</label>
+                    <select 
+                      className="w-full bg-black/40 border border-white/10 rounded-md h-10 px-3 text-sm focus:ring-1 focus:ring-primary outline-none"
+                      value={selectedMachineId}
+                      onChange={(e) => setSelectedMachineId(e.target.value)}
+                    >
+                      <option value="">Ninguna / Peso Libre</option>
+                      {machines.map(m => (
+                        <option key={m.id} value={m.id}>{m.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </>
+              )}
 
-            <Button 
-              className="w-full bg-primary text-black font-bold mt-4" 
-              onClick={() => {
-                if (activeTab === 'exercises') handleAddExercise();
-                if (activeTab === 'muscle_groups') handleAddMuscleGroup();
-                if (activeTab === 'machines') handleAddMachine();
-              }}
-            >
-              <Plus className="mr-2 h-4 w-4" /> Añadir a Catálogo
-            </Button>
-          </CardContent>
-        </Card>
+              <Button 
+                className="w-full bg-primary text-black font-bold mt-4" 
+                onClick={() => {
+                  if (activeTab === 'exercises') handleAddExercise();
+                  if (activeTab === 'muscle_groups') handleAddMuscleGroup();
+                  if (activeTab === 'machines') handleAddMachine();
+                }}
+              >
+                <Plus className="mr-2 h-4 w-4" /> Añadir a Catálogo
+              </Button>
+            </CardContent>
+          </Card>
 
-        {/* Panel Derecho: Lista */}
-        <Card className="bg-zinc-950 border-white/5 lg:col-span-2">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0">
-            <div>
-              <CardTitle className="text-lg">Catálogo Actual</CardTitle>
-              <CardDescription>Gestiona los elementos existentes.</CardDescription>
-            </div>
-            <div className="relative w-48">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
-              <Input 
-                placeholder="Buscar..." 
-                value={searchTerm} 
-                onChange={(e) => setSearchTerm(e.target.value)} 
-                className="pl-9 h-9 text-xs"
-              />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
-              {loading ? (
-                <div className="flex justify-center py-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                </div>
-              ) : activeTab === 'exercises' ? (
-                filteredExercises.map(ex => (
-                  <div key={ex.id} className="flex items-center justify-between p-3 rounded-lg bg-white/5 border border-white/5 hover:border-primary/20 transition-all group">
-                    <div>
-                      <p className="font-medium text-sm">{ex.name}</p>
-                      <div className="flex gap-2 mt-1">
-                        {ex.muscle_groups?.name && (
-                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
-                            {ex.muscle_groups.name}
-                          </span>
-                        )}
-                        {ex.machines?.name && (
-                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">
-                            {ex.machines.name}
-                          </span>
-                        )}
+          {/* Panel Derecho: Lista */}
+          <Card className="bg-zinc-950 border-white/5 lg:col-span-2">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0">
+              <div>
+                <CardTitle className="text-lg">Catálogo Actual</CardTitle>
+                <CardDescription>Gestiona los elementos existentes.</CardDescription>
+              </div>
+              <div className="relative w-48">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
+                <Input 
+                  placeholder="Buscar..." 
+                  value={searchTerm} 
+                  onChange={(e) => setSearchTerm(e.target.value)} 
+                  className="pl-9 h-9 text-xs"
+                />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
+                {loading ? (
+                  <div className="flex justify-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                  </div>
+                ) : activeTab === 'exercises' ? (
+                  filteredExercises.map(ex => (
+                    <div key={ex.id} className="flex items-center justify-between p-3 rounded-lg bg-white/5 border border-white/5 hover:border-primary/20 transition-all group">
+                      <div>
+                        <p className="font-medium text-sm">{ex.name}</p>
+                        <div className="flex gap-2 mt-1">
+                          {ex.muscle_groups?.name && (
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
+                              {ex.muscle_groups.name}
+                            </span>
+                          )}
+                          {ex.machines?.name && (
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                              {ex.machines.name}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-red-400 hover:text-red-300 hover:bg-red-500/10" onClick={() => handleDelete('exercises', ex.id)}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </div>
                     </div>
+                  ))
+                ) : (activeTab === 'muscle_groups' ? muscleGroups : machines).map(item => (
+                  <div key={item.id} className="flex items-center justify-between p-3 rounded-lg bg-white/5 border border-white/5 hover:border-primary/20 transition-all group">
+                    <p className="font-medium text-sm">{item.name}</p>
                     <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-red-400 hover:text-red-300 hover:bg-red-500/10" onClick={() => handleDelete('exercises', ex.id)}>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-red-400 hover:text-red-300 hover:bg-red-500/10" onClick={() => handleDelete(activeTab, item.id)}>
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
                   </div>
-                ))
-              ) : (activeTab === 'muscle_groups' ? muscleGroups : machines).map(item => (
-                <div key={item.id} className="flex items-center justify-between p-3 rounded-lg bg-white/5 border border-white/5 hover:border-primary/20 transition-all group">
-                  <p className="font-medium text-sm">{item.name}</p>
-                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-red-400 hover:text-red-300 hover:bg-red-500/10" onClick={() => handleDelete(activeTab, item.id)}>
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                ))}
+                
+                {!loading && (activeTab === 'exercises' ? filteredExercises : (activeTab === 'muscle_groups' ? muscleGroups : machines)).length === 0 && (
+                  <div className="text-center py-12 text-gray-500 italic">
+                    No hay elementos en esta categoría.
                   </div>
-                </div>
-              ))}
-              
-              {!loading && (activeTab === 'exercises' ? filteredExercises : (activeTab === 'muscle_groups' ? muscleGroups : machines)).length === 0 && (
-                <div className="text-center py-12 text-gray-500 italic">
-                  No hay elementos en esta categoría.
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }

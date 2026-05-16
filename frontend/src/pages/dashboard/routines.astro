@@ -1,0 +1,55 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import { RoutineManagement } from '@/components/management/RoutineManagement';
+import { Card, CardContent } from '@/components/ui/card';
+import { ArrowLeft } from 'lucide-react';
+---
+
+<script>
+	import { supabase } from '@/lib/supabase';
+	
+	async function checkAccess() {
+		const { data: { session } } = await supabase.auth.getSession();
+		
+		if (!session) {
+			window.location.href = '/auth';
+			return;
+		}
+
+		const { data: profile } = await supabase
+			.from('profiles')
+			.select('role')
+			.eq('id', session.user.id)
+			.single();
+
+		if (!profile || (profile.role !== 'trainer' && profile.role !== 'owner')) {
+			window.location.href = '/dashboard';
+		}
+	}
+
+	checkAccess();
+
+	supabase.auth.onAuthStateChange((event, session) => {
+		if (event === 'SIGNED_OUT' || !session) {
+			window.location.href = '/auth';
+		}
+	});
+</script>
+
+<Layout title="Gestión de Rutinas | Ctrl + Fit">
+	<div class="container mx-auto px-4 max-w-5xl">
+		<header class="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-4">
+			<div>
+				<div class="flex items-center gap-2 text-primary mb-2">
+					<a href="/dashboard/management" class="flex items-center gap-1 text-xs hover:underline">
+						<ArrowLeft class="h-3 w-3" /> Volver a Gestión
+					</a>
+				</div>
+				<h1 class="text-3xl font-bold font-heading">Mis Rutinas Prefabricadas</h1>
+				<p class="text-gray-400">Crea y administra las rutinas que luego asignarás a tus alumnos.</p>
+			</div>
+		</header>
+
+		<RoutineManagement client:load />
+	</div>
+</Layout>

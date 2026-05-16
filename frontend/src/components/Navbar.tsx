@@ -1,4 +1,4 @@
-import { Dumbbell, User, Home, LogOut, Settings } from "lucide-react";
+import { Dumbbell, User, Home, LogOut, Settings, ScrollText } from "lucide-react";
 import { useAuth } from "@/lib/useAuth";
 
 export function Navbar() {
@@ -27,6 +27,10 @@ export function Navbar() {
               </a>
               {(profile?.role === 'trainer' || profile?.role === 'owner') && (
                 <>
+                  <a href="/dashboard/routines" className="flex items-center gap-2 text-sm font-medium text-gray-300 hover:text-white transition-colors">
+                    <ScrollText className="h-4 w-4" />
+                    <span className="hidden sm:inline">Rutinas</span>
+                  </a>
                   <a href="/dashboard/management" className="flex items-center gap-2 text-sm font-medium text-gray-300 hover:text-white transition-colors">
                     <Settings className="h-4 w-4" />
                     <span className="hidden sm:inline">Gestión</span>
