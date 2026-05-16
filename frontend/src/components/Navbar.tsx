@@ -26,10 +26,16 @@ export function Navbar() {
                 <span className="hidden sm:inline">Dashboard</span>
               </a>
               {(profile?.role === 'trainer' || profile?.role === 'owner') && (
-                <a href="/dashboard/management" className="flex items-center gap-2 text-sm font-medium text-gray-300 hover:text-white transition-colors">
-                  <Settings className="h-4 w-4" />
-                  <span className="hidden sm:inline">Gestión</span>
-                </a>
+                <>
+                  <a href="/dashboard/management" className="flex items-center gap-2 text-sm font-medium text-gray-300 hover:text-white transition-colors">
+                    <Settings className="h-4 w-4" />
+                    <span className="hidden sm:inline">Gestión</span>
+                  </a>
+                  <a href="/dashboard/students" className="flex items-center gap-2 text-sm font-medium text-gray-300 hover:text-white transition-colors">
+                    <User className="h-4 w-4" />
+                    <span className="hidden sm:inline">Alumnos</span>
+                  </a>
+                </>
               )}
               <a href="/dashboard/profile" className="flex items-center gap-2 text-sm font-medium text-gray-300 hover:text-white transition-colors">
                 <User className="h-4 w-4" />

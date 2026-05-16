@@ -39,6 +39,7 @@ export const WorkoutSession = () => {
   const [isNewRoutine, setIsNewRoutine] = useState(true);
   const [isEditMode, setIsEditMode] = useState(false);
   const [currentRoutineId, setCurrentRoutineId] = useState<string | null>(null);
+  const [assignmentId, setAssignmentId] = useState<string | null>(null);
   
   // Auth and Roles
   const { profile } = useAuth();
@@ -68,6 +69,9 @@ export const WorkoutSession = () => {
     const params = new URLSearchParams(window.location.search);
     const routineId = params.get('routineId');
     const edit = params.get('edit') === 'true';
+    const aId = params.get('assignmentId');
+
+    if (aId) setAssignmentId(aId);
 
     if (routineId) {
       setCurrentRoutineId(routineId);
@@ -274,6 +278,15 @@ export const WorkoutSession = () => {
       );
 
       await supabase.from('workout_logs').insert(logs);
+
+      // Si venimos de una asignación del calendario, marcarla como completada
+      if (assignmentId) {
+        await supabase
+          .from('routine_assignments')
+          .update({ completed: true })
+          .eq('id', assignmentId);
+      }
+
       window.location.href = '/dashboard';
     } catch (error) {
       console.error('Error:', error);

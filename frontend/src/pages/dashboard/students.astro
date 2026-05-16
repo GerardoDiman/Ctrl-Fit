@@ -1,0 +1,40 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import { StudentManagement } from '@/components/management/StudentManagement';
+---
+
+<script>
+	import { supabase } from '@/lib/supabase';
+	
+	async function checkAccess() {
+		const { data: { session } } = await supabase.auth.getSession();
+		
+		if (!session) {
+			window.location.href = '/auth';
+			return;
+		}
+
+		const { data: profile } = await supabase
+			.from('profiles')
+			.select('role')
+			.eq('id', session.user.id)
+			.single();
+
+		if (!profile || (profile.role !== 'trainer' && profile.role !== 'owner')) {
+			window.location.href = '/dashboard';
+		}
+	}
+
+	checkAccess();
+</script>
+
+<Layout title="Mis Estudiantes | Ctrl + Fit">
+	<div class="container mx-auto px-4 max-w-6xl">
+		<header class="mb-8">
+			<h1 class="text-3xl font-bold font-heading">Mis Estudiantes</h1>
+			<p class="text-gray-400">Gestiona tus alumnos y asigna sus rutinas de entrenamiento.</p>
+		</header>
+
+		<StudentManagement client:load />
+	</div>
+</Layout>

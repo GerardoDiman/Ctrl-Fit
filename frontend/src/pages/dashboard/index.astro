@@ -2,6 +2,7 @@
 import Layout from '../../layouts/Layout.astro';
 import { WorkoutStats } from '@/components/dashboard/WorkoutStats';
 import { RoutineList } from '@/components/dashboard/RoutineList';
+import { StudentViewCalendar } from '@/components/dashboard/StudentViewCalendar';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
 ---
 
@@ -26,14 +27,28 @@ import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/com
 <Layout title="Dashboard | Ctrl + Fit">
 	<div class="container mx-auto px-4 max-w-5xl">
 		<header class="mb-8">
-			<h1 class="text-3xl font-bold font-heading">Tu Rendimiento</h1>
-			<p class="text-gray-400">Resumen de la semana actual.</p>
+			<h1 class="text-3xl font-bold font-heading text-white">Tu Rendimiento</h1>
+			<p class="text-gray-400">Resumen de la semana actual y planificación.</p>
 		</header>
 
 		<!-- Stats Grid Dinámico -->
 		<WorkoutStats client:load />
 
-		<!-- Rutina Actual Skeleton -->
-		<RoutineList client:load />
+		<!-- Calendario de Planificación -->
+		<section class="mb-12">
+			<header class="mb-4">
+				<h2 class="text-xl font-bold font-heading text-primary border-b border-white/5 pb-2">Planificación de Entrenamientos</h2>
+			</header>
+			<StudentViewCalendar client:load />
+		</section>
+
+		<!-- Mis Rutinas -->
+		<section>
+			<header class="mb-4">
+				<h2 class="text-xl font-bold font-heading text-white border-b border-white/5 pb-2">Mis Rutinas Guardadas</h2>
+			</header>
+			<RoutineList client:load />
+		</section>
 	</div>
 </Layout>
+
