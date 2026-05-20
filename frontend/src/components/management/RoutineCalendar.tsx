@@ -142,12 +142,12 @@ export function RoutineCalendar({ studentId, trainerId }: RoutineCalendarProps) 
           return (
             <div 
               key={i} 
-              className={`min-h-[100px] bg-zinc-950 p-2 border-t border-white/5 transition-colors group relative ${
+              className={`min-h-[75px] md:min-h-[100px] bg-zinc-950 p-1 md:p-2 border-t border-white/5 transition-colors group relative ${
                 !isCurrentMonth ? 'opacity-30' : ''
               }`}
             >
-              <div className="flex justify-between items-start mb-1">
-                <span className={`text-xs font-medium ${isToday ? 'bg-primary text-black h-5 w-5 flex items-center justify-center rounded-full' : 'text-gray-400'}`}>
+              <div className="flex justify-between items-start mb-1 gap-1">
+                <span className={`text-[10px] md:text-xs font-medium ${isToday ? 'bg-primary text-black h-4 w-4 md:h-5 md:w-5 flex items-center justify-center rounded-full' : 'text-gray-400'}`}>
                   {format(day, 'd')}
                 </span>
                 <button 
@@ -155,25 +155,25 @@ export function RoutineCalendar({ studentId, trainerId }: RoutineCalendarProps) 
                     setSelectedDate(day);
                     setShowAssignModal(true);
                   }}
-                  className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-white/10 rounded"
+                  className="opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity p-1 hover:bg-white/10 rounded border border-white/5 md:border-transparent bg-white/5 md:bg-transparent"
                 >
-                  <Plus className="h-3 w-3 text-primary" />
+                  <Plus className="h-3.5 w-3.5 md:h-3 md:w-3 text-primary" />
                 </button>
               </div>
 
               <div className="space-y-1">
                 {dayAssignments.map(a => (
-                  <div key={a.id} className={`text-[10px] p-1 rounded border flex items-center justify-between group/item ${
+                  <div key={a.id} className={`text-[9px] md:text-[10px] p-0.5 md:p-1 rounded border flex items-center justify-between gap-1 group/item ${
                     a.completed 
                       ? 'bg-green-500/10 text-green-500 border-green-500/20' 
                       : 'bg-primary/10 text-primary border-primary/20'
                   }`}>
-                    <div className="flex items-center gap-1 truncate">
-                      {a.completed && <CheckCircle2 className="h-2 w-2 shrink-0" />}
-                      <span className="truncate pr-1">{a.routines.name}</span>
+                    <div className="flex items-center gap-0.5 md:gap-1 truncate">
+                      {a.completed && <CheckCircle2 className="h-2.5 w-2.5 md:h-2 md:w-2 shrink-0" />}
+                      <span className="truncate pr-0.5">{a.routines.name}</span>
                     </div>
-                    <button onClick={() => handleDeleteAssignment(a.id)} className="opacity-0 group-hover/item:opacity-100 text-red-400 hover:text-red-300">
-                      <X className="h-2 w-2" />
+                    <button onClick={() => handleDeleteAssignment(a.id)} className="opacity-100 md:opacity-0 md:group-hover/item:opacity-100 text-red-400 hover:text-red-300 p-0.5 shrink-0">
+                      <X className="h-2.5 w-2.5 md:h-2 md:w-2" />
                     </button>
                   </div>
                 ))}

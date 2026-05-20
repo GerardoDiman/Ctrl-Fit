@@ -4,12 +4,13 @@ import { useAuth } from '@/lib/useAuth';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Plus, Trash2, Edit2, Check, X, Search, Dumbbell, Layers, Cpu, Settings, ScrollText } from 'lucide-react';
+import { Plus, Trash2, Edit2, Check, X, Search, Dumbbell, Layers, Cpu, Settings, ScrollText, User } from 'lucide-react';
 import { RoutineManagement } from './RoutineManagement';
+import { StudentManagement } from './StudentManagement';
 
 export function ManagementDashboard() {
   const { profile, loading: authLoading } = useAuth();
-  const [activeTab, setActiveTab] = useState<'exercises' | 'muscle_groups' | 'machines' | 'routines'>('exercises');
+  const [activeTab, setActiveTab] = useState<'students' | 'routines' | 'exercises' | 'muscle_groups' | 'machines'>('students');
   const [loading, setLoading] = useState(true);
   
   const [exercises, setExercises] = useState<any[]>([]);
@@ -120,32 +121,37 @@ export function ManagementDashboard() {
   return (
     <div className="space-y-6">
       {/* Custom Tabs */}
-      <div className="flex bg-zinc-900/50 p-1 rounded-lg border border-white/5 w-full max-w-md mx-auto">
-        {[
-          { id: 'exercises', label: 'Ejercicios', icon: Dumbbell },
-          { id: 'muscle_groups', label: 'Músculos', icon: Layers },
-          { id: 'machines', label: 'Máquinas', icon: Cpu },
-          { id: 'routines', label: 'Rutinas', icon: ScrollText },
-        ].map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => {
-              setActiveTab(tab.id as any);
-              setNewItemName('');
-            }}
-            className={`flex-1 flex items-center justify-center gap-2 py-2 text-sm font-medium transition-all rounded-md ${
-              activeTab === tab.id 
-                ? 'bg-primary text-black shadow-lg shadow-primary/20' 
-                : 'text-gray-400 hover:text-white hover:bg-white/5'
-            }`}
-          >
-            <tab.icon className="h-4 w-4" />
-            {tab.label}
-          </button>
-        ))}
+      <div className="w-full overflow-x-auto no-scrollbar pb-1 md:pb-0">
+        <div className="flex bg-zinc-900/50 p-1 rounded-lg border border-white/5 min-w-[540px] md:min-w-0 w-full max-w-2xl mx-auto gap-1">
+          {[
+            { id: 'students', label: 'Alumnos', icon: User },
+            { id: 'routines', label: 'Rutinas', icon: ScrollText },
+            { id: 'exercises', label: 'Ejercicios', icon: Dumbbell },
+            { id: 'muscle_groups', label: 'Músculos', icon: Layers },
+            { id: 'machines', label: 'Máquinas', icon: Cpu },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => {
+                setActiveTab(tab.id as any);
+                setNewItemName('');
+              }}
+              className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 text-xs md:text-sm font-medium transition-all rounded-md whitespace-nowrap ${
+                activeTab === tab.id 
+                  ? 'bg-primary text-black shadow-lg shadow-primary/20' 
+                  : 'text-gray-400 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <tab.icon className="h-4 w-4" />
+              {tab.label}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {activeTab === 'routines' ? (
+      {activeTab === 'students' ? (
+        <StudentManagement />
+      ) : activeTab === 'routines' ? (
         <RoutineManagement />
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

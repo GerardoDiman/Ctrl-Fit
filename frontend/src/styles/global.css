@@ -132,4 +132,13 @@
     text-shadow: 0 0 8px rgba(var(--color-primary-rgb), 0.3);
   }
 
+  /* Ocultar barra de desplazamiento manteniendo funcionalidad */
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
+  }
+
 }

@@ -4,7 +4,7 @@ import { useAuth } from '@/lib/useAuth';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Search, UserPlus, UserMinus, Calendar as CalendarIcon, ChevronRight, User, Trash2 } from 'lucide-react';
+import { Search, UserPlus, UserMinus, Calendar as CalendarIcon, ChevronRight, User, Trash2, ArrowLeft } from 'lucide-react';
 import { RoutineCalendar } from './RoutineCalendar';
 
 export function StudentManagement() {
@@ -64,6 +64,9 @@ export function StudentManagement() {
       fetchMyStudents();
       setSearchResults([]);
       setSearchTerm('');
+    } else {
+      console.error("Error linking student:", error);
+      alert(`No se pudo vincular al estudiante: ${error.message}`);
     }
   };
 
@@ -78,6 +81,9 @@ export function StudentManagement() {
     if (!error) {
       fetchMyStudents();
       if (selectedStudent?.id === studentId) setSelectedStudent(null);
+    } else {
+      console.error("Error unlinking student:", error);
+      alert(`No se pudo desvincular al estudiante: ${error.message}`);
     }
   };
 
@@ -90,7 +96,7 @@ export function StudentManagement() {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
       {/* Sidebar: Student List & Search */}
-      <div className="lg:col-span-4 space-y-6">
+      <div className={`lg:col-span-4 space-y-6 ${selectedStudent ? 'hidden lg:block' : 'block'}`}>
         <Card className="bg-zinc-950 border-white/5">
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
@@ -166,12 +172,20 @@ export function StudentManagement() {
       </div>
 
       {/* Main Area: Calendar & Assignment */}
-      <div className="lg:col-span-8">
+      <div className={`lg:col-span-8 ${!selectedStudent ? 'hidden lg:block' : 'block'}`}>
         {selectedStudent ? (
           <div className="space-y-6">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div className="flex items-center gap-4">
-                <div className="h-12 w-12 rounded-full bg-primary/20 flex items-center justify-center">
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="lg:hidden h-10 w-10 text-gray-400 hover:text-white"
+                  onClick={() => setSelectedStudent(null)}
+                >
+                  <ArrowLeft className="h-5 w-5" />
+                </Button>
+                <div className="h-12 w-12 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
                   <User className="h-6 w-6 text-primary" />
                 </div>
                 <div>
@@ -179,7 +193,7 @@ export function StudentManagement() {
                   <p className="text-sm text-gray-400">Planificación de entrenamientos</p>
                 </div>
               </div>
-              <Button variant="outline" size="sm" className="text-red-400 border-red-500/20 hover:bg-red-500/10" onClick={() => unlinkStudent(selectedStudent.id)}>
+              <Button variant="outline" size="sm" className="text-red-400 border-red-500/20 hover:bg-red-500/10 w-full sm:w-auto" onClick={() => unlinkStudent(selectedStudent.id)}>
                 <Trash2 className="h-4 w-4 mr-2" /> Desvincular
               </Button>
             </div>
