@@ -47,8 +47,8 @@ export function RoutineCalendar({ studentId, trainerId }: RoutineCalendarProps) 
     const { data: routineData } = await supabase
       .from('routines')
       .select('*, routine_exercises(id)')
-      .eq('trainer_id', trainerId)
-      .is('student_id', null);
+      .is('student_id', null)
+      .or(`trainer_id.eq.${trainerId},is_global.eq.true`);
 
     if (assignData) setAssignments(assignData);
     if (routineData) {
@@ -234,7 +234,14 @@ export function RoutineCalendar({ studentId, trainerId }: RoutineCalendarProps) 
                       className="w-full flex items-center justify-between p-3 rounded-xl border border-white/5 bg-white/5 hover:border-primary/50 hover:bg-primary/5 transition-all text-left group"
                     >
                       <div className="flex flex-col flex-1 cursor-pointer" onClick={() => setViewingRoutine(r)}>
-                        <span className="font-bold text-sm group-hover:text-primary transition-colors">{r.name}</span>
+                        <span className="font-bold text-sm group-hover:text-primary transition-colors flex items-center gap-2">
+                          {r.name}
+                          {r.is_global && (
+                            <span className="text-[9px] px-1.5 py-0.5 rounded bg-[#adc6ff]/10 text-[#adc6ff] border border-[#adc6ff]/20 font-bold uppercase tracking-wider">
+                              Base
+                            </span>
+                          )}
+                        </span>
                         <div className="flex items-center gap-2 mt-1">
                           <span className="text-[10px] text-gray-500 uppercase font-bold">{r.exercises?.length || 0} EJERCICIOS</span>
                           {r.description && <span className="text-[10px] text-gray-600 truncate max-w-[150px]">• {r.description}</span>}

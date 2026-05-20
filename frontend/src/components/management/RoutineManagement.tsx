@@ -20,6 +20,8 @@ interface RoutineTemplate {
   name: string;
   description: string;
   exercises_count: number;
+  is_global: boolean;
+  trainer_id: string;
 }
 
 export function RoutineManagement() {
@@ -37,6 +39,8 @@ export function RoutineManagement() {
   const [routineName, setRoutineName] = useState('');
   const [routineDescription, setRoutineDescription] = useState('');
   const [selectedExercises, setSelectedExercises] = useState<any[]>([]);
+  const [isGlobal, setIsGlobal] = useState(false);
+  const [activeTab, setActiveTab] = useState<'personal' | 'base'>('personal');
   
   // Exercise selector states
   const [showSelector, setShowSelector] = useState(false);
@@ -66,10 +70,12 @@ export function RoutineManagement() {
         id, 
         name, 
         description,
+        is_global,
+        trainer_id,
         routine_exercises (id)
       `)
       .is('student_id', null)
-      .eq('trainer_id', profile?.id)
+      .or(`trainer_id.eq.${profile?.id},is_global.eq.true`)
       .order('name');
 
     if (!error && data) {
@@ -77,7 +83,9 @@ export function RoutineManagement() {
         id: r.id,
         name: r.name,
         description: r.description || '',
-        exercises_count: r.routine_exercises?.length || 0
+        exercises_count: r.routine_exercises?.length || 0,
+        is_global: !!r.is_global,
+        trainer_id: r.trainer_id
       })));
     }
     setLoading(false);
@@ -96,6 +104,7 @@ export function RoutineManagement() {
     setEditingId(template.id);
     setRoutineName(template.name);
     setRoutineDescription(template.description);
+    setIsGlobal(template.is_global);
     
     const { data, error } = await supabase
       .from('routine_exercises')
@@ -122,6 +131,7 @@ export function RoutineManagement() {
     setRoutineName('');
     setRoutineDescription('');
     setSelectedExercises([]);
+    setIsGlobal(false);
     setView('editor');
   };
 
@@ -130,6 +140,7 @@ export function RoutineManagement() {
     setEditingId(null); // It's a new routine
     setRoutineName(`${template.name} (Copia)`);
     setRoutineDescription(template.description);
+    setIsGlobal(false); // Las rutinas duplicadas son locales por defecto
     
     const { data, error } = await supabase
       .from('routine_exercises')
@@ -165,23 +176,33 @@ export function RoutineManagement() {
     try {
       let routineId = editingId;
 
+      const isOwner = profile?.role === 'owner';
+
       if (editingId) {
         // Update
-        await supabase.from('routines').update({
+        const updatePayload: any = {
           name: routineName,
           description: routineDescription
-        }).eq('id', editingId);
+        };
+        if (isOwner) {
+          updatePayload.is_global = isGlobal;
+        }
+        await supabase.from('routines').update(updatePayload).eq('id', editingId);
         
         // Clean exercises to re-insert
         await supabase.from('routine_exercises').delete().eq('routine_id', editingId);
       } else {
         // Create
-        const { data, error } = await supabase.from('routines').insert({
+        const insertPayload: any = {
           name: routineName,
           description: routineDescription,
           trainer_id: profile?.id,
           student_id: null
-        }).select().single();
+        };
+        if (isOwner) {
+          insertPayload.is_global = isGlobal;
+        }
+        const { data, error } = await supabase.from('routines').insert(insertPayload).select().single();
         
         if (error) throw error;
         routineId = data.id;
@@ -288,6 +309,27 @@ export function RoutineManagement() {
                   onChange={(e) => setRoutineDescription(e.target.value)}
                 />
               </div>
+              {profile?.role === 'owner' && (
+                <div className="flex items-center justify-between p-3 rounded-lg bg-white/5 border border-white/5 mt-4">
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-xs font-bold text-gray-200">Plantilla Global</span>
+                    <span className="text-[10px] text-gray-400">Pública para todos los entrenadores</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsGlobal(!isGlobal)}
+                    className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                      isGlobal ? 'bg-primary' : 'bg-zinc-800'
+                    }`}
+                  >
+                    <span
+                      className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-black shadow ring-0 transition duration-200 ease-in-out ${
+                        isGlobal ? 'translate-x-5' : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -410,12 +452,46 @@ export function RoutineManagement() {
     );
   }
 
+  const filteredTemplates = templates.filter(t => {
+    const matchesSearch = t.name.toLowerCase().includes(searchTerm.toLowerCase());
+    if (activeTab === 'personal') {
+      return matchesSearch && !t.is_global;
+    } else {
+      return matchesSearch && t.is_global;
+    }
+  });
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <h2 className="text-2xl font-bold">Plantillas de Rutina</h2>
-          <p className="text-gray-400 text-sm">Crea rutinas estándar para asignar rápidamente a tus alumnos.</p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex gap-2 bg-zinc-950 p-1 rounded-lg border border-white/5 self-start">
+          <button
+            onClick={() => setActiveTab('personal')}
+            className={`px-4 py-2 rounded-sm text-xs font-bold transition-all ${
+              activeTab === 'personal'
+                ? 'bg-primary text-black'
+                : 'text-gray-400 hover:text-white'
+            }`}
+          >
+            Mis Plantillas
+          </button>
+          <button
+            onClick={() => setActiveTab('base')}
+            className={`px-4 py-2 rounded-sm text-xs font-bold transition-all flex items-center gap-2 ${
+              activeTab === 'base'
+                ? 'bg-primary text-black'
+                : 'text-gray-400 hover:text-white'
+            }`}
+          >
+            Rutinas Base
+            <span className={`text-[9px] px-1.5 py-0.5 rounded font-extrabold transition-all ${
+              activeTab === 'base'
+                ? 'bg-black/20 text-black'
+                : 'bg-[#adc6ff]/10 text-[#adc6ff]'
+            }`}>
+              {templates.filter(t => t.is_global).length}
+            </span>
+          </button>
         </div>
         <Button onClick={handleCreate} className="bg-primary text-black font-bold">
           <Plus className="h-4 w-4 mr-2" /> Nueva Plantilla
@@ -440,21 +516,34 @@ export function RoutineManagement() {
               <div className="col-span-full py-12 flex justify-center">
                 <Loader2 className="animate-spin h-8 w-8 text-primary" />
               </div>
-            ) : templates.filter(t => t.name.toLowerCase().includes(searchTerm.toLowerCase())).map(template => (
+            ) : filteredTemplates.map(template => (
               <Card key={template.id} className="bg-white/5 border-white/5 hover:border-primary/30 transition-all group overflow-hidden">
                 <div className="p-4">
                   <div className="flex justify-between items-start mb-2">
-                    <h3 className="font-bold group-hover:text-primary transition-colors">{template.name}</h3>
+                    <div className="flex flex-col gap-1">
+                      <h3 className="font-bold group-hover:text-primary transition-colors flex items-center gap-2">
+                        {template.name}
+                        {template.is_global && (
+                          <span className="text-[9px] px-1.5 py-0.5 rounded bg-[#adc6ff]/10 text-[#adc6ff] border border-[#adc6ff]/20 font-bold uppercase tracking-wider">
+                            Base
+                          </span>
+                        )}
+                      </h3>
+                    </div>
                     <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-primary/20 hover:text-primary" title="Duplicar" onClick={() => handleDuplicate(template)}>
                         <Copy className="h-4 w-4" />
                       </Button>
-                      <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-primary/20 hover:text-primary" title="Editar" onClick={() => handleEdit(template)}>
-                        <Edit2 className="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-red-500/20 text-red-400" title="Eliminar" onClick={() => handleDelete(template.id)}>
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      {(!template.is_global || profile?.role === 'owner') && (
+                        <>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-primary/20 hover:text-primary" title="Editar" onClick={() => handleEdit(template)}>
+                            <Edit2 className="h-4 w-4" />
+                          </Button>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-red-500/20 text-red-400" title="Eliminar" onClick={() => handleDelete(template.id)}>
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </>
+                      )}
                     </div>
                   </div>
                   <p className="text-xs text-gray-500 line-clamp-2 mb-4 h-8">{template.description || 'Sin descripción'}</p>
@@ -466,11 +555,17 @@ export function RoutineManagement() {
               </Card>
             ))}
             
-            {!loading && templates.length === 0 && (
+            {!loading && filteredTemplates.length === 0 && (
               <div className="col-span-full py-20 text-center border-2 border-dashed border-white/5 rounded-2xl">
                 <Dumbbell className="h-12 w-12 text-white/5 mx-auto mb-4" />
-                <p className="text-gray-500 italic">No has creado ninguna plantilla de rutina aún.</p>
-                <Button variant="link" onClick={handleCreate} className="text-primary mt-2">Crear mi primera rutina</Button>
+                <p className="text-gray-500 italic">
+                  {activeTab === 'personal' 
+                    ? 'No has creado ninguna plantilla de rutina aún.' 
+                    : 'No hay rutinas base de la plataforma registradas.'}
+                </p>
+                {activeTab === 'personal' && (
+                  <Button variant="link" onClick={handleCreate} className="text-primary mt-2">Crear mi primera rutina</Button>
+                )}
               </div>
             )}
           </div>
