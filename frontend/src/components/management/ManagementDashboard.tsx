@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Plus, Trash2, Edit2, Check, X, Search, Dumbbell, Layers, Cpu, Settings, ScrollText, User } from 'lucide-react';
 import { RoutineManagement } from './RoutineManagement';
 import { StudentManagement } from './StudentManagement';
+import { CatalogList } from './CatalogList';
 
 export function ManagementDashboard() {
   const { profile, loading: authLoading } = useAuth();
@@ -233,53 +234,18 @@ export function ManagementDashboard() {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="space-y-2 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
-                {loading ? (
-                  <div className="flex justify-center py-8">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                  </div>
-                ) : activeTab === 'exercises' ? (
-                  filteredExercises.map(ex => (
-                    <div key={ex.id} className="flex items-center justify-between p-3 rounded-lg bg-white/5 border border-white/5 hover:border-primary/20 transition-all group">
-                      <div>
-                        <p className="font-medium text-sm">{ex.name}</p>
-                        <div className="flex gap-2 mt-1">
-                          {ex.muscle_groups?.name && (
-                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
-                              {ex.muscle_groups.name}
-                            </span>
-                          )}
-                          {ex.machines?.name && (
-                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">
-                              {ex.machines.name}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-red-400 hover:text-red-300 hover:bg-red-500/10" onClick={() => handleDelete('exercises', ex.id)}>
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  ))
-                ) : (activeTab === 'muscle_groups' ? muscleGroups : machines).map(item => (
-                  <div key={item.id} className="flex items-center justify-between p-3 rounded-lg bg-white/5 border border-white/5 hover:border-primary/20 transition-all group">
-                    <p className="font-medium text-sm">{item.name}</p>
-                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-red-400 hover:text-red-300 hover:bg-red-500/10" onClick={() => handleDelete(activeTab, item.id)}>
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-                
-                {!loading && (activeTab === 'exercises' ? filteredExercises : (activeTab === 'muscle_groups' ? muscleGroups : machines)).length === 0 && (
-                  <div className="text-center py-12 text-gray-500 italic">
-                    No hay elementos en esta categoría.
-                  </div>
-                )}
-              </div>
+              <CatalogList
+                items={
+                  activeTab === 'exercises' 
+                    ? exercises 
+                    : activeTab === 'muscle_groups' 
+                      ? muscleGroups 
+                      : machines
+                }
+                searchTerm={searchTerm}
+                loading={loading}
+                onDelete={(id) => handleDelete(activeTab, id)}
+              />
             </CardContent>
           </Card>
         </div>
