@@ -100,18 +100,69 @@ export const WorkoutSession = () => {
           setCreationDate(new Date(routine.created_at).toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' }));
           setIsNewRoutine(!edit); // Si estamos editando, no es una "nueva" rutina visualmente en el mismo sentido
           
+          // Buscar historial de pesos del alumno para estos ejercicios
+          const { data: { session } } = await supabase.auth.getSession();
+          let userLastWeights: Record<string, { weight: number, reps: number }[]> = {};
+
+          if (session?.user?.id) {
+            const { data: lastSessions } = await supabase
+              .from('workout_sessions')
+              .select('id')
+              .eq('user_id', session.user.id)
+              .order('end_time', { ascending: false })
+              .limit(15);
+
+            if (lastSessions && lastSessions.length > 0) {
+              const { data: logs } = await supabase
+                .from('workout_logs')
+                .select('exercise_id, weight, reps, set_number, session_id')
+                .in('session_id', lastSessions.map(s => s.id))
+                .order('set_number', { ascending: true });
+
+              if (logs && logs.length > 0) {
+                const exerciseSessionMap: Record<string, string> = {};
+                for (const s of lastSessions) {
+                  const sessionLogs = logs.filter(l => l.session_id === s.id);
+                  for (const log of sessionLogs) {
+                    if (!exerciseSessionMap[log.exercise_id]) {
+                      exerciseSessionMap[log.exercise_id] = s.id;
+                    }
+                  }
+                }
+
+                Object.keys(exerciseSessionMap).forEach(exId => {
+                  const targetSessionId = exerciseSessionMap[exId];
+                  userLastWeights[exId] = logs
+                    .filter(l => l.exercise_id === exId && l.session_id === targetSessionId)
+                    .map(l => ({ weight: l.weight, reps: l.reps }));
+                });
+              }
+            }
+          }
+
           const mappedExercises = routine.routine_exercises.map((re: any) => {
+            const personalSets = userLastWeights[re.exercise_id];
+
             const sets = re.sets_data && Array.isArray(re.sets_data) && re.sets_data.length > 0
               ? re.sets_data.map((s: any) => ({
                   weight: s.weight?.toString() || '',
                   reps: s.reps?.toString() || '',
                   completed: false
                 }))
-              : Array.from({ length: re.sets || 1 }).map(() => ({
-                  weight: re.weight?.toString() || '',
-                  reps: re.reps?.toString() || '',
-                  completed: false
-                }));
+              : personalSets && personalSets.length > 0
+                ? Array.from({ length: re.sets || 1 }).map((_, idx) => {
+                    const pSet = personalSets[idx] || personalSets[personalSets.length - 1];
+                    return {
+                      weight: pSet.weight?.toString() || '',
+                      reps: pSet.reps?.toString() || re.reps?.toString() || '',
+                      completed: false
+                    };
+                  })
+                : Array.from({ length: re.sets || 1 }).map(() => ({
+                    weight: re.weight?.toString() || '',
+                    reps: re.reps?.toString() || '',
+                    completed: false
+                  }));
 
             return {
               id: re.exercise_id,

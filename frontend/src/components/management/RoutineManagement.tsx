@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/useAuth';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
@@ -12,16 +12,74 @@ interface RoutineExercise {
   sets: number;
   reps: number;
   weight: number;
-  rest_time?: number;
 }
 
 interface RoutineTemplate {
   id: string;
   name: string;
   description: string;
-  exercises_count: number;
   is_global: boolean;
-  trainer_id: string;
+  created_by: string;
+  exercises: RoutineExercise[];
+}
+
+interface SpinnerInputProps {
+  value: number | string;
+  onChange: (val: string) => void;
+  onAdjust: (delta: number) => void;
+  min?: number;
+}
+
+function SpinnerInput({ value, onChange, onAdjust, min = 0 }: SpinnerInputProps) {
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const element = inputRef.current;
+    if (!element) return;
+
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      if (e.deltaY < 0) {
+        onAdjust(1);
+      } else if (e.deltaY > 0) {
+        onAdjust(-1);
+      }
+    };
+
+    element.addEventListener('wheel', handleWheel, { passive: false });
+    return () => {
+      element.removeEventListener('wheel', handleWheel);
+    };
+  }, [onAdjust]);
+
+  return (
+    <div className="relative flex items-center bg-black/50 border border-white/10 rounded-md h-8 overflow-hidden">
+      <input
+        ref={inputRef}
+        type="number"
+        value={value}
+        min={min}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full h-full text-center bg-transparent border-none pr-6 focus:outline-none focus:ring-0 text-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+      />
+      <div className="absolute right-0 top-0 h-full flex flex-col border-l border-white/10 w-6">
+        <button
+          type="button"
+          onClick={() => onAdjust(1)}
+          className="flex-1 hover:bg-white/10 text-gray-500 hover:text-primary flex items-center justify-center border-b border-white/10"
+        >
+          <ChevronUp className="h-2 w-2" />
+        </button>
+        <button
+          type="button"
+          onClick={() => onAdjust(-1)}
+          className="flex-1 hover:bg-white/10 text-gray-500 hover:text-primary flex items-center justify-center"
+        >
+          <ChevronDown className="h-2 w-2" />
+        </button>
+      </div>
+    </div>
+  );
 }
 
 export function RoutineManagement() {
@@ -243,7 +301,7 @@ export function RoutineManagement() {
     setSelectedExercises([...selectedExercises, {
       id: ex.id,
       name: ex.name,
-      sets: 3,
+      sets: 4,
       reps: 12,
       weight: 0
     }]);
@@ -254,6 +312,25 @@ export function RoutineManagement() {
     const updated = [...selectedExercises];
     updated[idx] = { ...updated[idx], [field]: value };
     setSelectedExercises(updated);
+  };
+
+  const adjustSets = (idx: number, delta: number) => {
+    const current = parseInt(selectedExercises[idx].sets);
+    const val = Math.max(1, (isNaN(current) ? 4 : current) + delta);
+    updateExercise(idx, 'sets', val);
+  };
+
+  const adjustReps = (idx: number, delta: number) => {
+    const current = parseInt(selectedExercises[idx].reps);
+    const val = Math.max(0, (isNaN(current) ? 12 : current) + delta);
+    updateExercise(idx, 'reps', val);
+  };
+
+  const adjustWeight = (idx: number, delta: number) => {
+    const current = parseFloat(selectedExercises[idx].weight);
+    const val = Math.max(0, (isNaN(current) ? 0 : current) + delta * 2.5);
+    const rounded = Math.round(val * 100) / 100;
+    updateExercise(idx, 'weight', rounded);
   };
 
   const removeExercise = (idx: number) => {
@@ -380,15 +457,30 @@ export function RoutineManagement() {
                     <div className="grid grid-cols-3 gap-4">
                       <div className="space-y-1">
                         <label className="text-[10px] font-bold text-gray-500 uppercase">Series</label>
-                        <Input type="number" value={ex.sets} onChange={(e) => updateExercise(idx, 'sets', e.target.value)} className="h-8 text-center bg-black/50" />
+                        <SpinnerInput
+                          value={ex.sets}
+                          min={1}
+                          onChange={(val) => updateExercise(idx, 'sets', val)}
+                          onAdjust={(delta) => adjustSets(idx, delta)}
+                        />
                       </div>
                       <div className="space-y-1">
                         <label className="text-[10px] font-bold text-gray-500 uppercase">Reps</label>
-                        <Input type="number" value={ex.reps} onChange={(e) => updateExercise(idx, 'reps', e.target.value)} className="h-8 text-center bg-black/50" />
+                        <SpinnerInput
+                          value={ex.reps}
+                          min={0}
+                          onChange={(val) => updateExercise(idx, 'reps', val)}
+                          onAdjust={(delta) => adjustReps(idx, delta)}
+                        />
                       </div>
                       <div className="space-y-1">
                         <label className="text-[10px] font-bold text-gray-500 uppercase">Peso Ref (kg)</label>
-                        <Input type="number" value={ex.weight} onChange={(e) => updateExercise(idx, 'weight', e.target.value)} className="h-8 text-center bg-black/50" />
+                        <SpinnerInput
+                          value={ex.weight}
+                          min={0}
+                          onChange={(val) => updateExercise(idx, 'weight', val)}
+                          onAdjust={(delta) => adjustWeight(idx, delta)}
+                        />
                       </div>
                     </div>
                   </div>

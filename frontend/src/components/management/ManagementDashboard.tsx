@@ -4,10 +4,11 @@ import { useAuth } from '@/lib/useAuth';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Plus, Trash2, Edit2, Check, X, Search, Dumbbell, Layers, Cpu, Settings, ScrollText, User } from 'lucide-react';
+import { Plus, Trash2, Edit2, Check, X, Search, Dumbbell, Layers, Cpu, Settings, ScrollText, User, ArrowUpDown } from 'lucide-react';
 import { RoutineManagement } from './RoutineManagement';
 import { StudentManagement } from './StudentManagement';
 import { CatalogList } from './CatalogList';
+import { FormSelect } from '@/components/FormSelect';
 
 export function ManagementDashboard() {
   const { profile, loading: authLoading } = useAuth();
@@ -19,6 +20,12 @@ export function ManagementDashboard() {
   const [machines, setMachines] = useState<any[]>([]);
   
   const [searchTerm, setSearchTerm] = useState('');
+  
+  // Filtros y ordenamiento de ejercicios
+  const [muscleGroupFilter, setMuscleGroupFilter] = useState('');
+  const [machineFilter, setMachineFilter] = useState('');
+  const [sortBy, setSortBy] = useState<'name' | 'muscle_group' | 'machine'>('name');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   
   // States for new items
   const [newItemName, setNewItemName] = useState('');
@@ -90,10 +97,51 @@ export function ManagementDashboard() {
     }
   };
 
-  const filteredExercises = exercises.filter(ex => 
-    ex.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    ex.muscle_groups?.name?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const getProcessedExercises = () => {
+    let list = [...exercises];
+
+    // 1. Filtrar por término de búsqueda (nombre, grupo muscular o máquina)
+    if (searchTerm.trim()) {
+      const term = searchTerm.toLowerCase();
+      list = list.filter(ex => 
+        ex.name.toLowerCase().includes(term) ||
+        ex.muscle_groups?.name?.toLowerCase().includes(term) ||
+        ex.machines?.name?.toLowerCase().includes(term)
+      );
+    }
+
+    // 2. Filtrar por grupo muscular
+    if (muscleGroupFilter) {
+      list = list.filter(ex => ex.muscle_group_id === muscleGroupFilter);
+    }
+
+    // 3. Filtrar por máquina
+    if (machineFilter) {
+      list = list.filter(ex => ex.machine_id === machineFilter);
+    }
+
+    // 4. Ordenamiento
+    list.sort((a, b) => {
+      let valA = '';
+      let valB = '';
+
+      if (sortBy === 'name') {
+        valA = a.name || '';
+        valB = b.name || '';
+      } else if (sortBy === 'muscle_group') {
+        valA = a.muscle_groups?.name || '';
+        valB = b.muscle_groups?.name || '';
+      } else if (sortBy === 'machine') {
+        valA = a.machines?.name || '';
+        valB = b.machines?.name || '';
+      }
+
+      const comparison = valA.localeCompare(valB, 'es', { sensitivity: 'base' });
+      return sortOrder === 'asc' ? comparison : -comparison;
+    });
+
+    return list;
+  };
 
   if (authLoading) {
     return (
@@ -171,34 +219,31 @@ export function ManagementDashboard() {
                   onChange={(e) => setNewItemName(e.target.value)} 
                 />
               </div>
-              
-              {activeTab === 'exercises' && (
+                 {activeTab === 'exercises' && (
                 <>
                   <div className="space-y-2">
                     <label className="text-xs font-bold text-gray-500 uppercase">Grupo Muscular</label>
-                    <select 
-                      className="w-full bg-black/40 border border-white/10 rounded-md h-10 px-3 text-sm focus:ring-1 focus:ring-primary outline-none"
-                      value={selectedMuscleGroupId}
-                      onChange={(e) => setSelectedMuscleGroupId(e.target.value)}
-                    >
-                      <option value="">Seleccionar...</option>
-                      {muscleGroups.map(mg => (
-                        <option key={mg.id} value={mg.id}>{mg.name}</option>
-                      ))}
-                    </select>
+                    <FormSelect
+                      value={selectedMuscleGroupId || "none"}
+                      onValueChange={(val) => setSelectedMuscleGroupId(val === "none" ? "" : val)}
+                      options={[
+                        { value: "none", label: "Seleccionar..." },
+                        ...muscleGroups.map(mg => ({ value: mg.id, label: mg.name }))
+                      ]}
+                      placeholder="Seleccionar..."
+                    />
                   </div>
                   <div className="space-y-2">
                     <label className="text-xs font-bold text-gray-500 uppercase">Máquina (Opcional)</label>
-                    <select 
-                      className="w-full bg-black/40 border border-white/10 rounded-md h-10 px-3 text-sm focus:ring-1 focus:ring-primary outline-none"
-                      value={selectedMachineId}
-                      onChange={(e) => setSelectedMachineId(e.target.value)}
-                    >
-                      <option value="">Ninguna / Peso Libre</option>
-                      {machines.map(m => (
-                        <option key={m.id} value={m.id}>{m.name}</option>
-                      ))}
-                    </select>
+                    <FormSelect
+                      value={selectedMachineId || "none"}
+                      onValueChange={(val) => setSelectedMachineId(val === "none" ? "" : val)}
+                      options={[
+                        { value: "none", label: "Ninguna / Peso Libre" },
+                        ...machines.map(m => ({ value: m.id, label: m.name }))
+                      ]}
+                      placeholder="Ninguna / Peso Libre"
+                    />
                   </div>
                 </>
               )}
@@ -234,15 +279,72 @@ export function ManagementDashboard() {
               </div>
             </CardHeader>
             <CardContent>
+              {activeTab === 'exercises' && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 mb-4 p-3 bg-white/5 border border-white/5 rounded-xl">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-gray-500 uppercase">Grupo Muscular</label>
+                    <FormSelect
+                      value={muscleGroupFilter || "all"}
+                      onValueChange={(val) => setMuscleGroupFilter(val === "all" ? "" : val)}
+                      options={[
+                        { value: "all", label: "Todos" },
+                        ...muscleGroups.map(mg => ({ value: mg.id, label: mg.name }))
+                      ]}
+                      placeholder="Todos"
+                    />
+                  </div>
+                  
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-gray-500 uppercase">Máquina</label>
+                    <FormSelect
+                      value={machineFilter || "all"}
+                      onValueChange={(val) => setMachineFilter(val === "all" ? "" : val)}
+                      options={[
+                        { value: "all", label: "Todas" },
+                        ...machines.map(m => ({ value: m.id, label: m.name }))
+                      ]}
+                      placeholder="Todas"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-gray-500 uppercase">Ordenar por</label>
+                    <FormSelect
+                      value={sortBy}
+                      onValueChange={(val) => setSortBy(val as any)}
+                      options={[
+                        { value: "name", label: "Nombre" },
+                        { value: "muscle_group", label: "Grupo Muscular" },
+                        { value: "machine", label: "Máquina" }
+                      ]}
+                      placeholder="Ordenar por"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-gray-500 uppercase">Dirección</label>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="w-full h-9 bg-black/40 border-white/10 text-xs flex justify-between items-center text-gray-300 hover:text-white"
+                      onClick={() => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}
+                    >
+                      <span>{sortOrder === 'asc' ? 'Ascendente' : 'Descendente'}</span>
+                      <ArrowUpDown className="h-3.5 w-3.5 text-primary" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+
               <CatalogList
                 items={
                   activeTab === 'exercises' 
-                    ? exercises 
+                    ? getProcessedExercises()
                     : activeTab === 'muscle_groups' 
                       ? muscleGroups 
                       : machines
                 }
-                searchTerm={searchTerm}
+                searchTerm={activeTab === 'exercises' ? '' : searchTerm}
                 loading={loading}
                 onDelete={(id) => handleDelete(activeTab, id)}
               />
