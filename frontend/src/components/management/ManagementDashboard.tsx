@@ -40,6 +40,13 @@ export function ManagementDashboard() {
     fetchData();
   }, []);
 
+  useEffect(() => {
+    setEditingId(null);
+    setNewItemName('');
+    setSelectedMuscleGroupId('');
+    setSelectedMachineId('');
+  }, [activeTab]);
+
   const fetchData = async () => {
     setLoading(true);
     const [exRes, mgRes, mRes] = await Promise.all([
@@ -95,6 +102,62 @@ export function ManagementDashboard() {
       if (table === 'muscle_groups') setMuscleGroups(muscleGroups.filter(x => x.id !== id));
       if (table === 'machines') setMachines(machines.filter(x => x.id !== id));
     }
+  };
+
+  const handleStartEdit = (item: any) => {
+    setEditingId(item.id);
+    setNewItemName(item.name);
+    if (activeTab === 'exercises') {
+      setSelectedMuscleGroupId(item.muscle_group_id || '');
+      setSelectedMachineId(item.machine_id || '');
+    }
+  };
+
+  const handleSaveEdit = async () => {
+    if (!newItemName.trim() || !editingId) return;
+
+    if (activeTab === 'exercises') {
+      const { error } = await supabase.from('exercises').update({
+        name: newItemName.trim(),
+        muscle_group_id: selectedMuscleGroupId || null,
+        machine_id: selectedMachineId || null
+      }).eq('id', editingId);
+
+      if (!error) {
+        setEditingId(null);
+        setNewItemName('');
+        setSelectedMuscleGroupId('');
+        setSelectedMachineId('');
+        fetchData();
+      }
+    } else if (activeTab === 'muscle_groups') {
+      const { error } = await supabase.from('muscle_groups').update({
+        name: newItemName.trim()
+      }).eq('id', editingId);
+
+      if (!error) {
+        setEditingId(null);
+        setNewItemName('');
+        fetchData();
+      }
+    } else if (activeTab === 'machines') {
+      const { error } = await supabase.from('machines').update({
+        name: newItemName.trim()
+      }).eq('id', editingId);
+
+      if (!error) {
+        setEditingId(null);
+        setNewItemName('');
+        fetchData();
+      }
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditingId(null);
+    setNewItemName('');
+    setSelectedMuscleGroupId('');
+    setSelectedMachineId('');
   };
 
   const getProcessedExercises = () => {
@@ -204,11 +267,11 @@ export function ManagementDashboard() {
         <RoutineManagement />
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Panel Izquierdo: Crear */}
+          {/* Panel Izquierdo: Crear / Editar */}
           <Card className="bg-zinc-950 border-white/5 lg:col-span-1 h-fit">
             <CardHeader>
-              <CardTitle className="text-lg">Nuevo {activeTab === 'exercises' ? 'Ejercicio' : activeTab === 'muscle_groups' ? 'Grupo Muscular' : 'Máquina'}</CardTitle>
-              <CardDescription>Completa los campos para añadir al catálogo.</CardDescription>
+              <CardTitle className="text-lg">{editingId ? 'Editar' : 'Nuevo'} {activeTab === 'exercises' ? 'Ejercicio' : activeTab === 'muscle_groups' ? 'Grupo Muscular' : 'Máquina'}</CardTitle>
+              <CardDescription>{editingId ? 'Modifica los campos del elemento seleccionado.' : 'Completa los campos para añadir al catálogo.'}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
@@ -248,16 +311,34 @@ export function ManagementDashboard() {
                 </>
               )}
 
-              <Button 
-                className="w-full bg-primary text-black font-bold mt-4" 
-                onClick={() => {
-                  if (activeTab === 'exercises') handleAddExercise();
-                  if (activeTab === 'muscle_groups') handleAddMuscleGroup();
-                  if (activeTab === 'machines') handleAddMachine();
-                }}
-              >
-                <Plus className="mr-2 h-4 w-4" /> Añadir a Catálogo
-              </Button>
+              {editingId ? (
+                <div className="flex flex-col gap-2 mt-4">
+                  <Button 
+                    className="w-full bg-primary text-black font-bold" 
+                    onClick={handleSaveEdit}
+                  >
+                    <Check className="mr-2 h-4 w-4" /> Guardar Cambios
+                  </Button>
+                  <Button 
+                    variant="outline"
+                    className="w-full border-white/10 text-gray-300 hover:text-white" 
+                    onClick={handleCancelEdit}
+                  >
+                    <X className="mr-2 h-4 w-4" /> Cancelar
+                  </Button>
+                </div>
+              ) : (
+                <Button 
+                  className="w-full bg-primary text-black font-bold mt-4" 
+                  onClick={() => {
+                    if (activeTab === 'exercises') handleAddExercise();
+                    if (activeTab === 'muscle_groups') handleAddMuscleGroup();
+                    if (activeTab === 'machines') handleAddMachine();
+                  }}
+                >
+                  <Plus className="mr-2 h-4 w-4" /> Añadir a Catálogo
+                </Button>
+              )}
             </CardContent>
           </Card>
 
@@ -347,6 +428,7 @@ export function ManagementDashboard() {
                 searchTerm={activeTab === 'exercises' ? '' : searchTerm}
                 loading={loading}
                 onDelete={(id) => handleDelete(activeTab, id)}
+                onEdit={handleStartEdit}
               />
             </CardContent>
           </Card>

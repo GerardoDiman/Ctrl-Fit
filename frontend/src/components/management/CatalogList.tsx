@@ -1,10 +1,12 @@
 import React from 'react';
-import { Trash2 } from 'lucide-react';
+import { Trash2, Edit2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 export interface CatalogItem {
   id: string;
   name: string;
+  muscle_group_id?: string | null;
+  machine_id?: string | null;
   muscle_groups?: { name: string } | null;
   machines?: { name: string } | null;
 }
@@ -14,10 +16,11 @@ interface CatalogListProps {
   searchTerm: string;
   loading: boolean;
   onDelete: (id: string) => void;
+  onEdit?: (item: CatalogItem) => void;
   renderExtraBadge?: (item: CatalogItem) => React.ReactNode;
 }
 
-export function CatalogList({ items, searchTerm, loading, onDelete, renderExtraBadge }: CatalogListProps) {
+export function CatalogList({ items, searchTerm, loading, onDelete, onEdit, renderExtraBadge }: CatalogListProps) {
   const filtered = items.filter(item =>
     item.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -65,6 +68,16 @@ export function CatalogList({ items, searchTerm, loading, onDelete, renderExtraB
             )}
           </div>
           <div className="flex gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+            {onEdit && (
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="h-8 w-8 text-primary hover:text-primary-foreground hover:bg-primary/10" 
+                onClick={() => onEdit(item)}
+              >
+                <Edit2 className="h-4 w-4" />
+              </Button>
+            )}
             <Button 
               variant="ghost" 
               size="icon" 
