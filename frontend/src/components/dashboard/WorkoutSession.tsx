@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/useAuth';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
@@ -44,6 +44,7 @@ export const WorkoutSession = () => {
   const [isEditMode, setIsEditMode] = useState(false);
   const [currentRoutineId, setCurrentRoutineId] = useState<string | null>(null);
   const [assignmentId, setAssignmentId] = useState<string | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   
   // Recovery of workout session
   const [pendingWorkout, setPendingWorkout] = useState<any | null>(null);
@@ -71,6 +72,14 @@ export const WorkoutSession = () => {
     }
     return () => clearInterval(interval);
   }, [status, startTime]);
+
+  // Auto-adjust textarea height to fit content dynamically
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
+    }
+  }, [routineName, status]);
 
   // Auto-save active workout session to localStorage
   useEffect(() => {
@@ -503,62 +512,84 @@ export const WorkoutSession = () => {
         </Card>
       )}
 
-      {/* Dynamic Header */}
-      <div className="bg-card p-6 rounded-xl border border-border shadow-2xl sticky top-4 z-20">
-        <div className="flex flex-col md:flex-row justify-between items-center gap-6">
-          <div className="flex items-center gap-4 w-full md:w-auto">
-            <div className={`p-4 rounded-full transition-all duration-500 ${status === 'active' ? 'bg-primary shadow-[0_0_20px_rgba(var(--color-primary-rgb),0.4)]' : 'bg-white/5'}`}>
-              <Clock className={`${status === 'active' ? 'text-black animate-spin-slow' : 'text-gray-500'} h-8 w-8`} />
-            </div>
-            <div className="flex-1">
-              <Input 
+      {/* Sticky Header Wrapper (Masks content scrolling behind) */}
+      <div 
+        className="sticky top-0 z-20 pt-4 pb-2 -mx-4 px-4 md:-mx-6 md:px-6 transition-all duration-300"
+        style={{ backgroundColor: 'var(--color-background, #111508)' }}
+      >
+        {/* Dynamic Header Card */}
+        <div className="bg-card p-6 rounded-xl border border-border shadow-2xl space-y-4">
+        {/* Fila 1: Información Principal de la Rutina (Icono + Título + Badges) */}
+        <div className="flex items-center gap-4 w-full">
+          <div className={`p-4 rounded-full transition-all duration-500 ${status === 'active' ? 'bg-primary shadow-[0_0_20px_rgba(var(--color-primary-rgb),0.4)]' : 'bg-white/5'}`}>
+            <Clock className={`${status === 'active' ? 'text-black animate-spin-slow' : 'text-gray-500'} h-8 w-8`} />
+          </div>
+          <div className="flex-1 min-w-0">
+            {status === 'active' ? (
+              <h2 className="text-2xl font-bold text-white leading-tight break-words mb-1">
+                {routineName}
+              </h2>
+            ) : (
+              <textarea 
+                ref={textareaRef}
                 value={routineName} 
                 onChange={(e) => setRoutineName(e.target.value)}
-                className="bg-transparent border-none text-2xl font-bold p-0 focus-visible:ring-0 text-white h-auto mb-1"
+                className="bg-transparent border-none text-2xl font-bold p-0 focus-visible:ring-0 text-white w-full resize-none focus:outline-none focus:ring-0 break-words leading-tight overflow-hidden mb-1"
                 placeholder="Nombre del Entrenamiento"
-                disabled={status === 'active'}
+                rows={1}
+                onInput={(e) => {
+                  const target = e.target as HTMLTextAreaElement;
+                  target.style.height = 'auto';
+                  target.style.height = `${target.scrollHeight}px`;
+                }}
               />
-              <div className="flex items-center gap-3 text-[10px] font-bold text-gray-500 uppercase tracking-widest">
-                <span className="text-primary px-2 py-0.5 bg-primary/10 rounded-full">
-                  {status === 'planning' ? 'Planificación' : 'En Vivo'}
+            )}
+            <div className="flex flex-wrap items-center gap-3 text-[10px] font-bold text-gray-500 uppercase tracking-widest">
+              <span className="text-primary px-2 py-0.5 bg-primary/10 rounded-full">
+                {status === 'planning' ? 'Planificación' : 'En Vivo'}
+              </span>
+              <div className="flex items-center gap-1.5">
+                <CalendarIcon className="h-3 w-3" />
+                <span>
+                  {isEditMode ? `Editando: ${routineName}` : (isNewRoutine ? 'Nueva Rutina - Hoy' : `Programado: ${creationDate}`)}
                 </span>
-                <div className="flex items-center gap-1.5">
-                  <CalendarIcon className="h-3 w-3" />
-                  <span>
-                    {isEditMode ? `Editando: ${routineName}` : (isNewRoutine ? 'Nueva Rutina - Hoy' : `Programado: ${creationDate}`)}
-                  </span>
-                </div>
               </div>
             </div>
           </div>
-          
+        </div>
+
+        {/* Separador Sutil */}
+        <div className="border-t border-white/5 pt-2"></div>
+
+        {/* Fila 2: Selector de Fecha y Controles de la Sesión */}
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
           {/* Calendar Picker - Execution Date */}
-          <div className="flex flex-col gap-1 w-full md:w-auto">
+          <div className="flex flex-col gap-1.5 w-full sm:w-auto">
             <span className="text-[10px] font-bold text-gray-500 uppercase ml-1">Fecha de Entrenamiento</span>
             <DatePicker 
               value={selectedDate}
               onChange={setSelectedDate}
               disabled={status === 'active'}
-              className="w-full md:w-[240px]"
+              className="w-full sm:w-[240px]"
             />
           </div>
 
-          <div className="flex gap-3 w-full md:w-auto">
+          <div className="flex gap-3 w-full sm:w-auto">
             {status === 'planning' ? (
               <>
-                <Button variant="outline" className="flex-1" onClick={saveRoutine}>
+                <Button variant="outline" className="flex-1 sm:flex-none sm:w-[130px]" onClick={saveRoutine}>
                   <Save className="mr-2 h-4 w-4" /> {isEditMode ? 'Actualizar' : 'Programar'}
                 </Button>
-                <Button className="flex-1 bg-primary text-black font-bold" onClick={startWorkout}>
+                <Button className="flex-1 sm:flex-none sm:w-[130px] bg-primary text-black font-bold hover:bg-primary/90" onClick={startWorkout}>
                   <Play className="mr-2 h-4 w-4 fill-current" /> Iniciar
                 </Button>
               </>
             ) : (
-              <div className="flex gap-2 w-full">
-                <Button variant="ghost" className="flex-1 text-gray-400 hover:text-red-400 border border-white/5 hover:border-red-500/20 hover:bg-red-500/10" onClick={discardActiveWorkout} disabled={status === 'saving'}>
+              <div className="flex gap-2 w-full sm:w-auto">
+                <Button variant="ghost" className="flex-1 sm:flex-none sm:w-[110px] text-gray-400 hover:text-red-400 border border-white/5 hover:border-red-500/20 hover:bg-red-500/10" onClick={discardActiveWorkout} disabled={status === 'saving'}>
                   Descartar
                 </Button>
-                <Button className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold" onClick={finishWorkout} disabled={status === 'saving'}>
+                <Button className="flex-1 sm:flex-none sm:w-[130px] bg-red-600 hover:bg-red-700 text-white font-bold" onClick={finishWorkout} disabled={status === 'saving'}>
                   {status === 'saving' ? <Loader2 className="animate-spin mr-2" /> : <Square className="mr-2 h-4 w-4 fill-current" />}
                   Finalizar
                 </Button>
@@ -566,6 +597,7 @@ export const WorkoutSession = () => {
             )}
           </div>
         </div>
+      </div>
       </div>
 
       {/* Exercises List */}

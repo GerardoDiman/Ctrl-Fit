@@ -4,9 +4,10 @@ import '../styles/global.css';
 
 interface Props {
 	title?: string;
+	noPadding?: boolean;
 }
 
-const { title = "Ctrl + Fit | Alto Rendimiento" } = Astro.props;
+const { title = "Ctrl + Fit | Alto Rendimiento", noPadding = false } = Astro.props;
 ---
 
 <!doctype html>
@@ -25,7 +26,7 @@ const { title = "Ctrl + Fit | Alto Rendimiento" } = Astro.props;
 	</head>
 	<body class="h-screen flex flex-col overflow-hidden bg-[var(--color-background)] text-[var(--color-foreground)] antialiased">
 		<Navbar client:load />
-		<main class="flex-1 overflow-y-auto pb-12 pt-6" style="scrollbar-gutter: stable;">
+		<main class={`flex-1 overflow-y-auto pb-12 ${noPadding ? '' : 'pt-6'}`} style="scrollbar-gutter: stable;">
 			<slot />
 		</main>
 	</body>
