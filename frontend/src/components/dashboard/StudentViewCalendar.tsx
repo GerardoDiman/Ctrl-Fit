@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
+import { Play, Info } from 'lucide-react';
+import { format, isSameDay, startOfWeek, startOfMonth, endOfWeek, endOfMonth } from 'date-fns';
+import { es } from 'date-fns/locale';
+import { InteractiveCalendar } from '@/components/ui/InteractiveCalendar';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Play, Info } from 'lucide-react';
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, startOfWeek, endOfWeek } from 'date-fns';
-import { es } from 'date-fns/locale';
 
 export function StudentViewCalendar() {
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -47,75 +48,39 @@ export function StudentViewCalendar() {
     setSelectedDayAssignments(dayData);
   };
 
-  // Calendar logic
-  const monthStart = startOfMonth(currentDate);
-  const monthEnd = endOfMonth(currentDate);
-  const calendarStart = startOfWeek(monthStart, { weekStartsOn: 1 });
-  const calendarEnd = endOfWeek(monthEnd, { weekStartsOn: 1 });
-  
-  const calendarDays = eachDayOfInterval({
-    start: calendarStart,
-    end: calendarEnd
-  });
-
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mt-8">
       {/* Calendar Grid */}
       <div className="lg:col-span-7">
-        <Card className="bg-zinc-950 border-white/5 overflow-hidden">
-          <CardHeader className="flex flex-row items-center justify-between pb-4">
-            <CardTitle className="text-xl capitalize flex items-center gap-2">
-              <CalendarIcon className="h-5 w-5 text-primary" />
-              {format(currentDate, 'MMMM yyyy', { locale: es })}
-            </CardTitle>
-            <div className="flex gap-1">
-              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setCurrentDate(subMonths(currentDate, 1))}>
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setCurrentDate(addMonths(currentDate, 1))}>
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="grid grid-cols-7 border-t border-white/5">
-              {['L', 'M', 'X', 'J', 'V', 'S', 'D'].map(day => (
-                <div key={day} className="p-2 text-center text-[10px] font-bold text-gray-500 uppercase">
-                  {day}
-                </div>
-              ))}
-              {calendarDays.map((day, i) => {
-                const dayAssignments = assignments.filter(a => isSameDay(new Date(a.scheduled_date + 'T12:00:00'), day));
-                const isToday = isSameDay(day, new Date());
-                const isSelected = isSameDay(day, selectedDate);
-                const isCurrentMonth = isSameMonth(day, monthStart);
-
-                return (
-                  <button
-                    key={i}
-                    onClick={() => handleDayClick(day)}
-                    className={`h-14 border-t border-r border-white/5 p-1 transition-all relative flex flex-col items-center justify-start ${
-                      !isCurrentMonth ? 'opacity-20' : ''
-                    } ${isSelected ? 'bg-primary/5' : 'hover:bg-white/5'}`}
-                  >
-                    <span className={`text-xs h-6 w-6 flex items-center justify-center rounded-full mb-1 ${
-                      isToday ? 'bg-primary text-black font-bold' : isSelected ? 'border border-primary text-primary' : 'text-gray-400'
-                    }`}>
-                      {format(day, 'd')}
-                    </span>
-                    {dayAssignments.length > 0 && (
-                      <div className="flex gap-0.5">
-                        {dayAssignments.map((_, idx) => (
-                          <div key={idx} className="h-1 w-1 rounded-full bg-primary" />
-                        ))}
-                      </div>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
+        <InteractiveCalendar
+          currentDate={currentDate}
+          onDateChange={setCurrentDate}
+          selectedDate={selectedDate}
+          renderDayCell={(day, { isCurrentMonth, isToday, isSelected, dayFormatted }) => {
+            const dayAssignments = assignments.filter(a => isSameDay(new Date(a.scheduled_date + 'T12:00:00'), day));
+            return (
+              <button
+                onClick={() => handleDayClick(day)}
+                className={`h-14 border-b border-r border-white/5 p-1 transition-all relative flex flex-col items-center justify-start ${
+                  !isCurrentMonth ? 'opacity-20' : ''
+                } ${isSelected ? 'bg-primary/5 border-b-2 border-b-primary' : 'hover:bg-white/5'}`}
+              >
+                <span className={`text-xs h-6 w-6 flex items-center justify-center rounded-full mb-1 ${
+                  isToday ? 'bg-primary text-black font-bold' : isSelected ? 'text-primary font-bold' : 'text-gray-400'
+                }`}>
+                  {dayFormatted}
+                </span>
+                {dayAssignments.length > 0 && (
+                  <div className="flex gap-0.5 mt-auto mb-1">
+                    {dayAssignments.map((_, idx) => (
+                      <div key={idx} className="h-1 w-1 rounded-full bg-primary animate-pulse" />
+                    ))}
+                  </div>
+                )}
+              </button>
+            );
+          }}
+        />
       </div>
 
       {/* Day Details */}

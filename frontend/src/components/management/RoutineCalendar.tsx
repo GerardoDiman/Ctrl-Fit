@@ -2,9 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, ChevronRight, Plus, X, CheckCircle2 } from 'lucide-react';
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, startOfWeek, endOfWeek } from 'date-fns';
+import { Plus, X, CheckCircle2 } from 'lucide-react';
+import { format, isSameDay, startOfMonth, endOfMonth } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { InteractiveCalendar } from '@/components/ui/InteractiveCalendar';
 
 interface RoutineCalendarProps {
   studentId: string;
@@ -95,60 +96,23 @@ export function RoutineCalendar({ studentId, trainerId }: RoutineCalendarProps) 
     }
   };
 
-  // Calendar logic
-  const monthStart = startOfMonth(currentDate);
-  const monthEnd = endOfMonth(currentDate);
-  const calendarStart = startOfWeek(monthStart, { weekStartsOn: 1 });
-  const calendarEnd = endOfWeek(monthEnd, { weekStartsOn: 1 });
-  
-  const calendarDays = eachDayOfInterval({
-    start: calendarStart,
-    end: calendarEnd
-  });
-
-  const nextMonth = () => setCurrentDate(addMonths(currentDate, 1));
-  const prevMonth = () => setCurrentDate(subMonths(currentDate, 1));
-
   return (
     <div className="space-y-4">
-      {/* Calendar Header */}
-      <div className="flex items-center justify-between bg-zinc-900/50 p-4 rounded-xl border border-white/5">
-        <h3 className="text-lg font-bold capitalize">
-          {format(currentDate, 'MMMM yyyy', { locale: es })}
-        </h3>
-        <div className="flex gap-2">
-          <Button variant="ghost" size="icon" onClick={prevMonth}>
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <Button variant="ghost" size="icon" onClick={nextMonth}>
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
-
-      {/* Calendar Grid */}
-      <div className="grid grid-cols-7 gap-px bg-white/5 border border-white/5 rounded-xl overflow-hidden">
-        {['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'].map(day => (
-          <div key={day} className="bg-zinc-950 p-2 text-center text-[10px] font-bold text-gray-500 uppercase">
-            {day}
-          </div>
-        ))}
-        
-        {calendarDays.map((day, i) => {
+      <InteractiveCalendar
+        currentDate={currentDate}
+        onDateChange={setCurrentDate}
+        selectedDate={selectedDate}
+        renderDayCell={(day, { isCurrentMonth, isToday, isSelected, dayFormatted }) => {
           const dayAssignments = assignments.filter(a => isSameDay(new Date(a.scheduled_date + 'T12:00:00'), day));
-          const isToday = isSameDay(day, new Date());
-          const isCurrentMonth = isSameMonth(day, monthStart);
-
           return (
             <div 
-              key={i} 
-              className={`min-h-[75px] md:min-h-[100px] bg-zinc-950 p-1 md:p-2 border-t border-white/5 transition-colors group relative ${
+              className={`min-h-[75px] md:min-h-[100px] bg-zinc-950 p-1 md:p-2 border-b border-r border-white/5 transition-colors group relative ${
                 !isCurrentMonth ? 'opacity-30' : ''
-              }`}
+              } ${isSelected ? 'bg-primary/5' : ''}`}
             >
               <div className="flex justify-between items-start mb-1 gap-1">
-                <span className={`text-[10px] md:text-xs font-medium ${isToday ? 'bg-primary text-black h-4 w-4 md:h-5 md:w-5 flex items-center justify-center rounded-full' : 'text-gray-400'}`}>
-                  {format(day, 'd')}
+                <span className={`text-[10px] md:text-xs font-medium ${isToday ? 'bg-primary text-black h-4 w-4 md:h-5 md:w-5 flex items-center justify-center rounded-full font-bold' : 'text-gray-400'}`}>
+                  {dayFormatted}
                 </span>
                 <button 
                   onClick={() => {
@@ -180,8 +144,8 @@ export function RoutineCalendar({ studentId, trainerId }: RoutineCalendarProps) 
               </div>
             </div>
           );
-        })}
-      </div>
+        }}
+      />
 
       {/* Assign Modal (Overlay) */}
       {showAssignModal && (

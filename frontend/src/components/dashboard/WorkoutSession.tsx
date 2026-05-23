@@ -5,6 +5,7 @@ import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Plus, Trash2, Clock, Check, Save, Play, Square, Loader2, Calendar as CalendarIcon } from 'lucide-react';
+import { DatePicker } from '@/components/ui/DatePicker';
 
 interface Set {
   weight: string;
@@ -534,16 +535,12 @@ export const WorkoutSession = () => {
           {/* Calendar Picker - Execution Date */}
           <div className="flex flex-col gap-1 w-full md:w-auto">
             <span className="text-[10px] font-bold text-gray-500 uppercase ml-1">Fecha de Entrenamiento</span>
-            <div className="flex items-center gap-3 bg-white/5 hover:bg-white/10 transition-colors p-2 px-4 rounded-xl border border-white/10 shadow-inner group">
-              <CalendarIcon className="h-4 w-4 text-primary group-hover:scale-110 transition-transform" />
-              <input 
-                type="date" 
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-                className="bg-transparent border-none text-white focus:ring-0 text-sm font-bold cursor-pointer"
-                disabled={status === 'active'}
-              />
-            </div>
+            <DatePicker 
+              value={selectedDate}
+              onChange={setSelectedDate}
+              disabled={status === 'active'}
+              className="w-full md:w-[240px]"
+            />
           </div>
 
           <div className="flex gap-3 w-full md:w-auto">
