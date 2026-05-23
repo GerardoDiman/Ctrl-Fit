@@ -101,14 +101,12 @@ export function DatePicker({ value, onChange, disabled = false, className = '' }
                     onChange(formattedDate);
                     setIsOpen(false);
                   }}
-                  className={`h-9 w-9 text-xs flex items-center justify-center rounded-lg transition-all font-medium ${
-                    !isCurrentMonth 
-                      ? 'text-gray-600 opacity-20 hover:bg-white/5' 
-                      : 'text-gray-200'
-                  } ${
+                  className={`h-9 w-9 text-xs flex items-center justify-center rounded-lg transition-all ${
                     isSelected 
                       ? 'bg-primary text-black font-bold shadow-[0_0_12px_rgba(var(--color-primary-rgb),0.4)] hover:bg-primary' 
-                      : 'hover:bg-white/5'
+                      : !isCurrentMonth 
+                        ? 'text-gray-600 opacity-20 hover:bg-white/5' 
+                        : 'text-gray-200 hover:bg-white/5'
                   } ${isToday && !isSelected ? 'border border-primary text-primary font-bold' : ''}`}
                 >
                   {dayFormatted}

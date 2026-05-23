@@ -679,7 +679,7 @@ export const WorkoutSession = () => {
         ))}
 
         {!showExerciseSelector && (
-          <Button className="w-full h-16 bg-primary/5 border-2 border-dashed border-primary/20 text-primary" onClick={() => setShowExerciseSelector(true)}>
+          <Button className="w-full h-16 bg-primary/5 border-2 border-dashed border-primary/20 text-primary hover:bg-primary hover:text-black hover:border-primary transition-all duration-300" onClick={() => setShowExerciseSelector(true)}>
             + Añadir Ejercicio
           </Button>
         )}
