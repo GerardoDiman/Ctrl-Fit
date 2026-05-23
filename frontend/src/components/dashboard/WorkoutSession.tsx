@@ -41,6 +41,10 @@ export const WorkoutSession = () => {
   const [currentRoutineId, setCurrentRoutineId] = useState<string | null>(null);
   const [assignmentId, setAssignmentId] = useState<string | null>(null);
   
+  // Recovery of workout session
+  const [pendingWorkout, setPendingWorkout] = useState<any | null>(null);
+  const [showResumeDialog, setShowResumeDialog] = useState<boolean>(false);
+  
   // Auth and Roles
   const { profile } = useAuth();
   const isTrainer = profile?.role === 'trainer' || profile?.role === 'owner';
@@ -63,6 +67,40 @@ export const WorkoutSession = () => {
     }
     return () => clearInterval(interval);
   }, [status, startTime]);
+
+  // Auto-save active workout session to localStorage
+  useEffect(() => {
+    if (status === 'active' && startTime) {
+      const workoutState = {
+        startTime: startTime.toISOString(),
+        routineName,
+        selectedDate,
+        isNewRoutine,
+        isEditMode,
+        currentRoutineId,
+        assignmentId,
+        sessionExercises
+      };
+      localStorage.setItem('ctrlfit_active_workout', JSON.stringify(workoutState));
+    }
+  }, [status, startTime, routineName, selectedDate, isNewRoutine, isEditMode, currentRoutineId, assignmentId, sessionExercises]);
+
+  // Detect active workout session on mount
+  useEffect(() => {
+    const saved = localStorage.getItem('ctrlfit_active_workout');
+    if (saved) {
+      try {
+        const state = JSON.parse(saved);
+        if (state && state.startTime) {
+          setPendingWorkout(state);
+          setShowResumeDialog(true);
+        }
+      } catch (e) {
+        console.error('Error parsing saved workout session:', e);
+        localStorage.removeItem('ctrlfit_active_workout');
+      }
+    }
+  }, []);
 
   // Fetch routine if ID is in URL
   useEffect(() => {
@@ -216,6 +254,37 @@ export const WorkoutSession = () => {
     setStatus('active');
   };
 
+  const resumeWorkout = () => {
+    if (!pendingWorkout) return;
+    setStartTime(new Date(pendingWorkout.startTime));
+    setRoutineName(pendingWorkout.routineName);
+    setSelectedDate(pendingWorkout.selectedDate);
+    setIsNewRoutine(pendingWorkout.isNewRoutine);
+    setIsEditMode(pendingWorkout.isEditMode);
+    setCurrentRoutineId(pendingWorkout.currentRoutineId);
+    setAssignmentId(pendingWorkout.assignmentId);
+    setSessionExercises(pendingWorkout.sessionExercises);
+    setStatus('active');
+    setShowResumeDialog(false);
+    setPendingWorkout(null);
+  };
+
+  const discardSavedWorkout = () => {
+    localStorage.removeItem('ctrlfit_active_workout');
+    setShowResumeDialog(false);
+    setPendingWorkout(null);
+  };
+
+  const discardActiveWorkout = () => {
+    if (window.confirm('¿Estás seguro de que deseas descartar el entrenamiento actual? Todo el progreso de esta sesión se perderá.')) {
+      localStorage.removeItem('ctrlfit_active_workout');
+      setStatus('planning');
+      setStartTime(null);
+      setElapsedTime(0);
+      window.location.reload();
+    }
+  };
+
   const saveRoutine = async () => {
     if (sessionExercises.length === 0) {
       alert('Agrega ejercicios para guardar la rutina.');
@@ -287,6 +356,7 @@ export const WorkoutSession = () => {
       }
 
       alert(isEditMode ? 'Rutina actualizada correctamente.' : 'Rutina guardada correctamente.');
+      localStorage.removeItem('ctrlfit_active_workout');
       window.location.href = '/dashboard';
     } catch (error) {
       console.error('Error completo en saveRoutine:', error);
@@ -338,6 +408,7 @@ export const WorkoutSession = () => {
           .eq('id', assignmentId);
       }
 
+      localStorage.removeItem('ctrlfit_active_workout');
       window.location.href = '/dashboard';
     } catch (error) {
       console.error('Error:', error);
@@ -406,6 +477,31 @@ export const WorkoutSession = () => {
 
   return (
     <div className="space-y-6 pb-20">
+      {/* Resume Dialog / Banner */}
+      {showResumeDialog && pendingWorkout && (
+        <Card className="bg-zinc-950 border-primary/30 p-6 shadow-[0_0_30px_rgba(var(--color-primary-rgb),0.07)] flex flex-col md:flex-row justify-between items-center gap-6 animate-in fade-in slide-in-from-top-4 duration-300">
+          <div className="flex items-center gap-4 w-full md:w-auto">
+            <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+              <Clock className="h-6 w-6 text-primary animate-pulse" />
+            </div>
+            <div>
+              <h4 className="font-bold text-white text-lg">Entrenamiento en Curso Detectado</h4>
+              <p className="text-sm text-gray-400 mt-1">
+                Tenías un entrenamiento activo de <strong className="text-primary">"{pendingWorkout.routineName}"</strong> que comenzó el {new Date(pendingWorkout.startTime).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}.
+              </p>
+            </div>
+          </div>
+          <div className="flex gap-3 w-full md:w-auto justify-end">
+            <Button variant="ghost" className="text-gray-400 hover:text-red-400 border border-white/5 hover:border-red-500/20 hover:bg-red-500/10 flex-1 md:flex-none px-6" onClick={discardSavedWorkout}>
+              Descartar
+            </Button>
+            <Button className="bg-primary hover:bg-primary/90 text-black font-bold flex-1 md:flex-none px-6" onClick={resumeWorkout}>
+              Reanudar
+            </Button>
+          </div>
+        </Card>
+      )}
+
       {/* Dynamic Header */}
       <div className="bg-card p-6 rounded-xl border border-border shadow-2xl sticky top-4 z-20">
         <div className="flex flex-col md:flex-row justify-between items-center gap-6">
@@ -461,10 +557,15 @@ export const WorkoutSession = () => {
                 </Button>
               </>
             ) : (
-              <Button className="w-full bg-red-600 text-white font-bold" onClick={finishWorkout} disabled={status === 'saving'}>
-                {status === 'saving' ? <Loader2 className="animate-spin mr-2" /> : <Square className="mr-2 h-4 w-4 fill-current" />}
-                Finalizar
-              </Button>
+              <div className="flex gap-2 w-full">
+                <Button variant="ghost" className="flex-1 text-gray-400 hover:text-red-400 border border-white/5 hover:border-red-500/20 hover:bg-red-500/10" onClick={discardActiveWorkout} disabled={status === 'saving'}>
+                  Descartar
+                </Button>
+                <Button className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold" onClick={finishWorkout} disabled={status === 'saving'}>
+                  {status === 'saving' ? <Loader2 className="animate-spin mr-2" /> : <Square className="mr-2 h-4 w-4 fill-current" />}
+                  Finalizar
+                </Button>
+              </div>
             )}
           </div>
         </div>

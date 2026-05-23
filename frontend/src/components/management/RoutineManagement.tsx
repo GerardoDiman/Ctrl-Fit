@@ -4,7 +4,7 @@ import { useAuth } from '@/lib/useAuth';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Plus, Trash2, Edit2, Save, X, Search, Dumbbell, ArrowLeft, Loader2, GripVertical, ChevronUp, ChevronDown, Copy } from 'lucide-react';
+import { Plus, Trash2, Edit2, Save, X, Search, Dumbbell, ArrowLeft, Loader2, ChevronUp, ChevronDown, Copy } from 'lucide-react';
 
 interface RoutineExercise {
   id: string;

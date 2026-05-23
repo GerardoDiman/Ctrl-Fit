@@ -4,7 +4,7 @@ import { useAuth } from '@/lib/useAuth';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Search, UserPlus, UserMinus, Calendar as CalendarIcon, ChevronRight, User, Trash2, ArrowLeft } from 'lucide-react';
+import { Search, UserPlus, Calendar as CalendarIcon, ChevronRight, User, Trash2, ArrowLeft } from 'lucide-react';
 import { RoutineCalendar } from './RoutineCalendar';
 
 export function StudentManagement() {
@@ -17,21 +17,36 @@ export function StudentManagement() {
   const [searchLoading, setSearchLoading] = useState(false);
 
   useEffect(() => {
-    if (user) {
+    if (user && profile) {
       fetchMyStudents();
     }
-  }, [user]);
+  }, [user, profile]);
 
   const fetchMyStudents = async () => {
+    if (!user || !profile) return;
     setLoading(true);
     const { data, error } = await supabase
       .from('profiles')
       .select('*')
-      .eq('trainer_id', user?.id)
+      .eq('trainer_id', user.id)
       .eq('role', 'student')
       .order('full_name');
     
-    if (data) setStudents(data);
+    let list = data || [];
+    
+    // Crear el registro virtual del entrenador
+    const displayName = profile.full_name || `${profile.first_name || ''} ${profile.last_name || ''}`.trim();
+    const selfStudent = {
+      id: profile.id,
+      first_name: profile.first_name,
+      last_name: profile.last_name,
+      full_name: displayName ? `${displayName} (Tú)` : 'Entrenador (Tú)',
+      role: profile.role,
+      trainer_id: profile.id,
+      is_self: true
+    };
+    
+    setStudents([selfStudent, ...list]);
     setLoading(false);
   };
 
@@ -193,9 +208,11 @@ export function StudentManagement() {
                   <p className="text-sm text-gray-400">Planificación de entrenamientos</p>
                 </div>
               </div>
-              <Button variant="outline" size="sm" className="text-red-400 border-red-500/20 hover:bg-red-500/10 w-full sm:w-auto" onClick={() => unlinkStudent(selectedStudent.id)}>
-                <Trash2 className="h-4 w-4 mr-2" /> Desvincular
-              </Button>
+              {!selectedStudent.is_self && selectedStudent.id !== user?.id && (
+                <Button variant="outline" size="sm" className="text-red-400 border-red-500/20 hover:bg-red-500/10 w-full sm:w-auto" onClick={() => unlinkStudent(selectedStudent.id)}>
+                  <Trash2 className="h-4 w-4 mr-2" /> Desvincular
+                </Button>
+              )}
             </div>
 
             <RoutineCalendar studentId={selectedStudent.id} trainerId={user?.id || ''} />
