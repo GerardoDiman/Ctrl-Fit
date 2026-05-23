@@ -85,36 +85,43 @@ export function DatePicker({ value, onChange, disabled = false, className = '' }
 
       {/* Popover del Calendario */}
       {isOpen && (
-        <div className="absolute right-0 mt-2 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
-          <InteractiveCalendar
-            currentDate={currentMonth}
-            onDateChange={setCurrentMonth}
-            selectedDate={selectedDateObj}
-            className="w-[290px] border border-white/10 bg-zinc-950/95 backdrop-blur-md shadow-[0_10px_30px_rgba(0,0,0,0.5)] rounded-xl"
-            gridClassName="p-2 gap-1"
-            renderDayCell={(day, { isCurrentMonth, isToday, isSelected, dayFormatted }) => {
-              return (
-                <button
-                  type="button"
-                  onClick={() => {
-                    const formattedDate = `${day.getFullYear()}-${(day.getMonth() + 1).toString().padStart(2, '0')}-${day.getDate().toString().padStart(2, '0')}`;
-                    onChange(formattedDate);
-                    setIsOpen(false);
-                  }}
-                  className={`h-9 w-9 text-xs flex items-center justify-center rounded-lg transition-all ${
-                    isSelected 
-                      ? 'bg-primary text-black font-bold shadow-[0_0_12px_rgba(var(--color-primary-rgb),0.4)] hover:bg-primary' 
-                      : !isCurrentMonth 
-                        ? 'text-gray-600 opacity-20 hover:bg-white/5' 
-                        : 'text-gray-200 hover:bg-white/5'
-                  } ${isToday && !isSelected ? 'border border-primary text-primary font-bold' : ''}`}
-                >
-                  {dayFormatted}
-                </button>
-              );
-            }}
+        <>
+          {/* Backdrop para móviles */}
+          <div 
+            className="fixed inset-0 bg-black/80 z-40 md:hidden animate-in fade-in duration-200" 
+            onClick={() => setIsOpen(false)} 
           />
-        </div>
+          <div className="fixed md:absolute inset-x-4 top-[20%] mx-auto md:mx-0 md:inset-x-auto md:right-0 md:top-auto md:mt-2 z-50 flex justify-center md:block animate-in fade-in slide-in-from-bottom-4 md:slide-in-from-top-2 duration-200">
+            <InteractiveCalendar
+              currentDate={currentMonth}
+              onDateChange={setCurrentMonth}
+              selectedDate={selectedDateObj}
+              className="w-full max-w-[320px] md:w-[290px] border border-white/10 bg-zinc-950 backdrop-blur-md shadow-[0_10px_30px_rgba(0,0,0,0.5)] rounded-xl"
+              gridClassName="p-2 gap-1"
+              renderDayCell={(day, { isCurrentMonth, isToday, isSelected, dayFormatted }) => {
+                return (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const formattedDate = `${day.getFullYear()}-${(day.getMonth() + 1).toString().padStart(2, '0')}-${day.getDate().toString().padStart(2, '0')}`;
+                      onChange(formattedDate);
+                      setIsOpen(false);
+                    }}
+                    className={`h-9 w-9 text-xs flex items-center justify-center rounded-lg transition-all ${
+                      isSelected 
+                        ? 'bg-primary text-black font-bold shadow-[0_0_12px_rgba(var(--color-primary-rgb),0.4)] hover:bg-primary' 
+                        : !isCurrentMonth 
+                          ? 'text-gray-600 opacity-20 hover:bg-white/5' 
+                          : 'text-gray-200 hover:bg-white/5'
+                    } ${isToday && !isSelected ? 'border border-primary text-primary font-bold' : ''}`}
+                  >
+                    {dayFormatted}
+                  </button>
+                );
+              }}
+            />
+          </div>
+        </>
       )}
     </div>
   );

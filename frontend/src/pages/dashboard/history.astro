@@ -1,0 +1,28 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import { WorkoutHistory } from '@/components/dashboard/WorkoutHistory';
+---
+
+<script>
+	import { supabase } from '@/lib/supabase';
+	
+	// Check auth state
+	supabase.auth.getSession().then(({ data: { session } }) => {
+		if (!session) {
+			window.location.href = '/auth';
+		}
+	});
+
+	// Listen for auth changes
+	supabase.auth.onAuthStateChange((event, session) => {
+		if (event === 'SIGNED_OUT' || !session) {
+			window.location.href = '/auth';
+		}
+	});
+</script>
+
+<Layout title="Historial de Entrenamientos | Ctrl + Fit">
+	<div class="container mx-auto px-4 max-w-5xl">
+		<WorkoutHistory client:only="react" />
+	</div>
+</Layout>
