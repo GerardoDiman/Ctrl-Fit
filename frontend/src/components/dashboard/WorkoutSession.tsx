@@ -34,7 +34,10 @@ export const WorkoutSession = () => {
   const [showExerciseSelector, setShowExerciseSelector] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [routineName, setRoutineName] = useState('Mi Rutina Personalizada');
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [selectedDate, setSelectedDate] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}-${now.getDate().toString().padStart(2, '0')}`;
+  });
   const [creationDate, setCreationDate] = useState<string>(new Date().toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' }));
   const [isNewRoutine, setIsNewRoutine] = useState(true);
   const [isEditMode, setIsEditMode] = useState(false);
@@ -245,12 +248,9 @@ export const WorkoutSession = () => {
       alert('Programa al menos un ejercicio antes de empezar.');
       return;
     }
-    // Si la fecha seleccionada no es hoy, ajustamos el startTime relativo a esa fecha
-    const [year, month, day] = selectedDate.split('-').map(Number);
-    const now = new Date();
-    const workoutStart = new Date(year, month - 1, day, now.getHours(), now.getMinutes(), now.getSeconds());
     
-    setStartTime(workoutStart);
+    // El cronómetro y el entrenamiento en vivo se calculan desde el instante actual de la computadora
+    setStartTime(new Date());
     setStatus('active');
   };
 
