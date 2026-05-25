@@ -1,10 +1,11 @@
 import React from 'react';
-import { Trash2, Edit2 } from 'lucide-react';
+import { Trash2, Edit2, Image as ImageIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 export interface CatalogItem {
   id: string;
   name: string;
+  image_url?: string | null;
   muscle_group_id?: string | null;
   machine_id?: string | null;
   muscle_groups?: { name: string } | null;
@@ -46,28 +47,41 @@ export function CatalogList({ items, searchTerm, loading, onDelete, onEdit, rend
       {filtered.map((item) => (
         <div 
           key={item.id} 
-          className="flex items-center justify-between p-3 rounded-lg bg-white/5 border border-white/5 hover:border-primary/20 transition-all group"
+          className="flex items-center justify-between p-2.5 rounded-lg bg-white/5 border border-white/5 hover:border-primary/20 transition-all group"
         >
-          <div>
-            <p className="font-medium text-sm text-gray-200">{item.name}</p>
-            {renderExtraBadge ? (
-              renderExtraBadge(item)
+          <div className="flex items-center gap-3 min-w-0 flex-1">
+            {item.image_url ? (
+              <img 
+                src={item.image_url} 
+                alt={item.name} 
+                className="h-10 w-10 shrink-0 object-cover rounded-lg bg-zinc-900 border border-white/10" 
+              />
             ) : (
-              <div className="flex gap-2 mt-1">
-                {item.muscle_groups?.name && (
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
-                    {item.muscle_groups.name}
-                  </span>
-                )}
-                {item.machines?.name && (
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">
-                    {item.machines.name}
-                  </span>
-                )}
+              <div className="h-10 w-10 shrink-0 rounded-lg bg-zinc-900 border border-white/10 flex items-center justify-center text-gray-600 select-none">
+                <ImageIcon className="h-4.5 w-4.5 text-gray-600" />
               </div>
             )}
+            <div className="min-w-0 flex-1">
+              <p className="font-medium text-sm text-gray-200 truncate">{item.name}</p>
+              {renderExtraBadge ? (
+                renderExtraBadge(item)
+              ) : (
+                <div className="flex gap-1.5 mt-0.5 flex-wrap">
+                  {item.muscle_groups?.name && (
+                    <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 font-semibold">
+                      {item.muscle_groups.name}
+                    </span>
+                  )}
+                  {item.machines?.name && (
+                    <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20 font-semibold">
+                      {item.machines.name}
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
-          <div className="flex gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+          <div className="flex gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity shrink-0">
             {onEdit && (
               <Button 
                 variant="ghost" 

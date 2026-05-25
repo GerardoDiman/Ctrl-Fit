@@ -9,6 +9,7 @@ import { RoutineManagement } from './RoutineManagement';
 import { StudentManagement } from './StudentManagement';
 import { CatalogList } from './CatalogList';
 import { FormSelect } from '@/components/FormSelect';
+import { ImageUploader } from '@/components/ui/ImageUploader';
 
 export function ManagementDashboard() {
   const { profile, loading: authLoading } = useAuth();
@@ -36,6 +37,11 @@ export function ManagementDashboard() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState('');
 
+  // Image states
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [existingImageUrl, setExistingImageUrl] = useState<string | null>(null);
+  const [isImageRemoved, setIsImageRemoved] = useState(false);
+
   useEffect(() => {
     fetchData();
   }, []);
@@ -45,6 +51,9 @@ export function ManagementDashboard() {
     setNewItemName('');
     setSelectedMuscleGroupId('');
     setSelectedMachineId('');
+    setSelectedFile(null);
+    setExistingImageUrl(null);
+    setIsImageRemoved(false);
   }, [activeTab]);
 
   const fetchData = async () => {
@@ -61,36 +70,93 @@ export function ManagementDashboard() {
     setLoading(false);
   };
 
+  const uploadImage = async (file: File, folder: string): Promise<string | null> => {
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Math.random().toString(36).substring(2, 15)}_${Date.now()}.${fileExt}`;
+      const filePath = `${folder}/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('catalog_images')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data } = supabase.storage
+        .from('catalog_images')
+        .getPublicUrl(filePath);
+
+      return data.publicUrl;
+    } catch (e) {
+      console.error('Error al subir la imagen:', e);
+      alert('Error al subir la imagen al servidor.');
+      return null;
+    }
+  };
+
   const handleAddExercise = async () => {
     if (!newItemName.trim()) return;
+    let uploadedUrl = null;
+    if (selectedFile) {
+      uploadedUrl = await uploadImage(selectedFile, 'exercises');
+    }
+
     const { data, error } = await supabase.from('exercises').insert({
-      name: newItemName,
+      name: newItemName.trim(),
       muscle_group_id: selectedMuscleGroupId || null,
-      machine_id: selectedMachineId || null
+      machine_id: selectedMachineId || null,
+      image_url: uploadedUrl
     }).select().single();
     
     if (!error && data) {
       setExercises([...exercises, data].sort((a, b) => a.name.localeCompare(b.name)));
       setNewItemName('');
+      setSelectedFile(null);
+      setExistingImageUrl(null);
+      setIsImageRemoved(false);
       fetchData(); // Refetch to get names of relations
     }
   };
 
   const handleAddMuscleGroup = async () => {
     if (!newItemName.trim()) return;
-    const { data, error } = await supabase.from('muscle_groups').insert({ name: newItemName }).select().single();
+    let uploadedUrl = null;
+    if (selectedFile) {
+      uploadedUrl = await uploadImage(selectedFile, 'muscle_groups');
+    }
+
+    const { data, error } = await supabase.from('muscle_groups').insert({ 
+      name: newItemName.trim(),
+      image_url: uploadedUrl
+    }).select().single();
+
     if (!error && data) {
       setMuscleGroups([...muscleGroups, data].sort((a, b) => a.name.localeCompare(b.name)));
       setNewItemName('');
+      setSelectedFile(null);
+      setExistingImageUrl(null);
+      setIsImageRemoved(false);
     }
   };
 
   const handleAddMachine = async () => {
     if (!newItemName.trim()) return;
-    const { data, error } = await supabase.from('machines').insert({ name: newItemName }).select().single();
+    let uploadedUrl = null;
+    if (selectedFile) {
+      uploadedUrl = await uploadImage(selectedFile, 'machines');
+    }
+
+    const { data, error } = await supabase.from('machines').insert({ 
+      name: newItemName.trim(),
+      image_url: uploadedUrl
+    }).select().single();
+
     if (!error && data) {
       setMachines([...machines, data].sort((a, b) => a.name.localeCompare(b.name)));
       setNewItemName('');
+      setSelectedFile(null);
+      setExistingImageUrl(null);
+      setIsImageRemoved(false);
     }
   };
 
@@ -107,6 +173,9 @@ export function ManagementDashboard() {
   const handleStartEdit = (item: any) => {
     setEditingId(item.id);
     setNewItemName(item.name);
+    setExistingImageUrl(item.image_url || null);
+    setSelectedFile(null);
+    setIsImageRemoved(false);
     if (activeTab === 'exercises') {
       setSelectedMuscleGroupId(item.muscle_group_id || '');
       setSelectedMachineId(item.machine_id || '');
@@ -116,11 +185,21 @@ export function ManagementDashboard() {
   const handleSaveEdit = async () => {
     if (!newItemName.trim() || !editingId) return;
 
+    let finalImageUrl = existingImageUrl;
+    if (isImageRemoved) {
+      finalImageUrl = null;
+    }
+    if (selectedFile) {
+      const folder = activeTab === 'exercises' ? 'exercises' : activeTab === 'muscle_groups' ? 'muscle_groups' : 'machines';
+      finalImageUrl = await uploadImage(selectedFile, folder);
+    }
+
     if (activeTab === 'exercises') {
       const { error } = await supabase.from('exercises').update({
         name: newItemName.trim(),
         muscle_group_id: selectedMuscleGroupId || null,
-        machine_id: selectedMachineId || null
+        machine_id: selectedMachineId || null,
+        image_url: finalImageUrl
       }).eq('id', editingId);
 
       if (!error) {
@@ -128,26 +207,37 @@ export function ManagementDashboard() {
         setNewItemName('');
         setSelectedMuscleGroupId('');
         setSelectedMachineId('');
+        setSelectedFile(null);
+        setExistingImageUrl(null);
+        setIsImageRemoved(false);
         fetchData();
       }
     } else if (activeTab === 'muscle_groups') {
       const { error } = await supabase.from('muscle_groups').update({
-        name: newItemName.trim()
+        name: newItemName.trim(),
+        image_url: finalImageUrl
       }).eq('id', editingId);
 
       if (!error) {
         setEditingId(null);
         setNewItemName('');
+        setSelectedFile(null);
+        setExistingImageUrl(null);
+        setIsImageRemoved(false);
         fetchData();
       }
     } else if (activeTab === 'machines') {
       const { error } = await supabase.from('machines').update({
-        name: newItemName.trim()
+        name: newItemName.trim(),
+        image_url: finalImageUrl
       }).eq('id', editingId);
 
       if (!error) {
         setEditingId(null);
         setNewItemName('');
+        setSelectedFile(null);
+        setExistingImageUrl(null);
+        setIsImageRemoved(false);
         fetchData();
       }
     }
@@ -158,6 +248,9 @@ export function ManagementDashboard() {
     setNewItemName('');
     setSelectedMuscleGroupId('');
     setSelectedMachineId('');
+    setSelectedFile(null);
+    setExistingImageUrl(null);
+    setIsImageRemoved(false);
   };
 
   const getProcessedExercises = () => {
@@ -310,6 +403,17 @@ export function ManagementDashboard() {
                   </div>
                 </>
               )}
+
+              {/* Selector de Imagen de Referencia */}
+              <div className="space-y-2 pt-2 border-t border-white/5">
+                <label className="text-xs font-bold text-gray-500 uppercase">Imagen de Referencia</label>
+                <ImageUploader
+                  value={existingImageUrl}
+                  onChange={(file) => setSelectedFile(file)}
+                  onRemove={() => setIsImageRemoved(true)}
+                  className="mt-1"
+                />
+              </div>
 
               {editingId ? (
                 <div className="flex flex-col gap-2 mt-4">
