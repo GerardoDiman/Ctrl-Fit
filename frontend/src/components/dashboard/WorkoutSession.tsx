@@ -4,7 +4,7 @@ import { useAuth } from '@/lib/useAuth';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Plus, Trash2, Clock, Check, Save, Play, Square, Loader2, Calendar as CalendarIcon } from 'lucide-react';
+import { Plus, Trash2, Clock, Check, Save, Play, Square, Loader2, Calendar as CalendarIcon, X } from 'lucide-react';
 import { DatePicker } from '@/components/ui/DatePicker';
 
 interface Set {
@@ -17,6 +17,7 @@ interface WorkoutExercise {
   id: string;
   name: string;
   sets: Set[];
+  weightUnit?: 'kg' | 'lb';
 }
 
 interface ExerciseOption {
@@ -173,6 +174,7 @@ export const WorkoutSession = () => {
               reps,
               weight,
               sets_data,
+              weight_unit,
               exercises (name)
             )
           `)
@@ -251,6 +253,7 @@ export const WorkoutSession = () => {
             return {
               id: re.exercise_id,
               name: re.exercises.name,
+              weightUnit: re.weight_unit || 'kg',
               sets
             };
           });
@@ -383,6 +386,7 @@ export const WorkoutSession = () => {
           sets: ex.sets.length,
           reps: isNaN(repsValue) ? 0 : repsValue,
           weight: isNaN(weightValue) ? 0 : weightValue,
+          weight_unit: ex.weightUnit || 'kg',
           sets_data: ex.sets.map(s => ({
             reps: parseInt(s.reps) || 0,
             weight: parseFloat(s.weight) || 0
@@ -437,6 +441,7 @@ export const WorkoutSession = () => {
           set_number: idx + 1,
           weight: parseFloat(set.weight) || 0,
           reps: parseInt(set.reps) || 0,
+          weight_unit: ex.weightUnit || 'kg',
           completed: true
         }))
       );
@@ -495,6 +500,7 @@ export const WorkoutSession = () => {
     setSessionExercises([...sessionExercises, {
       id: exercise.id,
       name: exercise.name,
+      weightUnit: 'kg',
       sets: [{ weight: '', reps: '', completed: false }]
     }]);
     setShowExerciseSelector(false);
@@ -680,7 +686,7 @@ export const WorkoutSession = () => {
 
         {sessionExercises.map((ex, exIdx) => (
           <Card key={exIdx} className="border-white/5 bg-black/20 rounded-xl">
-            <CardHeader 
+            <div 
               className="sticky z-10 flex flex-row items-center justify-between bg-[#1a2408]/96 backdrop-blur-md py-3 px-4 md:py-4 md:px-6 border-b border-primary/20 rounded-t-xl"
               style={{ top: `${headerHeight}px` }}
             >
@@ -699,16 +705,50 @@ export const WorkoutSession = () => {
                       setSessionExercises(sessionExercises.filter((_, i) => i !== exIdx));
                     }
                   }}
-                  className="shrink-0 ml-2"
+                  className="h-8 w-8 rounded-full shrink-0 ml-2 text-gray-500 hover:text-red-500 hover:bg-red-500/10 flex items-center justify-center"
                 >
-                  <Trash2 className="h-5 w-5 text-gray-500 hover:text-red-500" />
+                  <X className="h-5 w-5" />
                 </Button>
               )}
-            </CardHeader>
+            </div>
             <CardContent className="p-4 md:p-6">
-                <div className="grid grid-cols-12 gap-4 mb-3 text-[10px] font-bold text-gray-500 uppercase">
+                <div className="grid grid-cols-12 gap-4 mb-3 text-[10px] font-bold text-gray-500 uppercase items-center">
                     <div className="col-span-2 text-center">Set</div>
-                    <div className="col-span-4 text-center">Peso (KG)</div>
+                    <div className="col-span-4 flex items-center justify-center gap-1.5">
+                      <span className="text-[10px] font-bold text-gray-500 uppercase">Peso</span>
+                      <div className="flex border border-white/10 rounded overflow-hidden">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const updated = [...sessionExercises];
+                            updated[exIdx].weightUnit = 'kg';
+                            setSessionExercises(updated);
+                          }}
+                          className={`px-1.5 py-0.5 text-[8px] font-extrabold transition-colors ${
+                            (ex.weightUnit || 'kg') === 'kg' 
+                              ? 'bg-primary text-black' 
+                              : 'bg-black/40 text-gray-400 hover:text-white'
+                          }`}
+                        >
+                          KG
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const updated = [...sessionExercises];
+                            updated[exIdx].weightUnit = 'lb';
+                            setSessionExercises(updated);
+                          }}
+                          className={`px-1.5 py-0.5 text-[8px] font-extrabold transition-colors ${
+                            ex.weightUnit === 'lb' 
+                              ? 'bg-primary text-black' 
+                              : 'bg-black/40 text-gray-400 hover:text-white'
+                          }`}
+                        >
+                          LB
+                        </button>
+                      </div>
+                    </div>
                     <div className="col-span-4 text-center">Reps</div>
                     <div className="col-span-2 text-center">Log</div>
                 </div>
@@ -716,7 +756,13 @@ export const WorkoutSession = () => {
                 <div key={setIdx} className="grid grid-cols-12 gap-4 items-center mb-2">
                   <div className="col-span-2 text-center font-bold text-gray-500">{setIdx + 1}</div>
                   <div className="col-span-4">
-                    <Input type="number" value={set.weight} onChange={(e) => updateSet(exIdx, setIdx, 'weight', e.target.value)} className="text-center bg-black/40 h-10" placeholder="0" />
+                    <Input 
+                      type="number" 
+                      value={set.weight} 
+                      onChange={(e) => updateSet(exIdx, setIdx, 'weight', e.target.value)} 
+                      className="text-center bg-black/40 h-10" 
+                      placeholder={ex.weightUnit === 'lb' ? "0 lb" : "0 kg"} 
+                    />
                   </div>
                   <div className="col-span-4">
                     <Input type="number" value={set.reps} onChange={(e) => updateSet(exIdx, setIdx, 'reps', e.target.value)} className="text-center bg-black/40 h-10" placeholder="0" />

@@ -67,6 +67,7 @@ interface FormExercise {
   exerciseId: string;
   name: string;
   sets: FormSet[];
+  weightUnit?: 'kg' | 'lb';
 }
 
 type ActiveTab = 'sessions' | 'agenda';
@@ -191,6 +192,7 @@ export const WorkoutHistory = () => {
           return {
             exerciseId: rx.exercise_id,
             name: rx.exercises.name,
+            weightUnit: rx.weight_unit || 'kg',
             sets
           };
         });
@@ -217,12 +219,13 @@ export const WorkoutHistory = () => {
 
       if (data && data.length > 0) {
         // Agrupar logs por exercise_id para reconstruir la estructura FormExercise
-        const grouped: Record<string, { name: string; sets: FormSet[] }> = {};
+        const grouped: Record<string, { name: string; weightUnit?: 'kg' | 'lb'; sets: FormSet[] }> = {};
         
         data.forEach((log: any) => {
           if (!grouped[log.exercise_id]) {
             grouped[log.exercise_id] = {
               name: log.exercises.name,
+              weightUnit: log.weight_unit || 'kg',
               sets: []
             };
           }
@@ -235,6 +238,7 @@ export const WorkoutHistory = () => {
         const mapped: FormExercise[] = Object.keys(grouped).map(exId => ({
           exerciseId: exId,
           name: grouped[exId].name,
+          weightUnit: grouped[exId].weightUnit || 'kg',
           sets: grouped[exId].sets
         }));
         setFormExercises(mapped);
@@ -332,6 +336,7 @@ export const WorkoutHistory = () => {
       {
         exerciseId: ex.id,
         name: ex.name,
+        weightUnit: 'kg',
         sets: [{ weight: '', reps: '' }]
       }
     ]);
@@ -402,6 +407,7 @@ export const WorkoutHistory = () => {
             set_number: idx + 1,
             weight: parseFloat(set.weight) || 0,
             reps: parseInt(set.reps) || 0,
+            weight_unit: ex.weightUnit || 'kg',
             completed: true
           }))
         );
@@ -518,6 +524,7 @@ export const WorkoutHistory = () => {
             set_number: idx + 1,
             weight: parseFloat(set.weight) || 0,
             reps: parseInt(set.reps) || 0,
+            weight_unit: ex.weightUnit || 'kg',
             completed: true
           }))
         );
@@ -595,6 +602,7 @@ export const WorkoutHistory = () => {
             set_number: idx + 1,
             weight: parseFloat(set.weight) || 0,
             reps: parseInt(set.reps) || 0,
+            weight_unit: ex.weightUnit || 'kg',
             completed: true
           }))
         );
@@ -906,7 +914,38 @@ export const WorkoutHistory = () => {
                           {ex.sets.length > 0 && (
                             <div className="flex items-center gap-1.5 text-[9px] text-gray-500 font-bold px-1 mb-1 select-none">
                               <span className="w-9 shrink-0">SERIE</span>
-                              <span className="flex-1 max-w-[70px] text-center">PESO (KG)</span>
+                              <div className="flex-1 max-w-[70px] flex items-center justify-center gap-0.5">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const updated = [...formExercises];
+                                    updated[exIdx].weightUnit = 'kg';
+                                    setFormExercises(updated);
+                                  }}
+                                  className={`px-1 py-0.5 text-[8px] font-extrabold rounded ${
+                                    (ex.weightUnit || 'kg') === 'kg'
+                                      ? 'bg-primary text-black font-black'
+                                      : 'bg-white/5 text-gray-500 hover:text-white'
+                                  }`}
+                                >
+                                  KG
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const updated = [...formExercises];
+                                    updated[exIdx].weightUnit = 'lb';
+                                    setFormExercises(updated);
+                                  }}
+                                  className={`px-1 py-0.5 text-[8px] font-extrabold rounded ${
+                                    ex.weightUnit === 'lb'
+                                      ? 'bg-primary text-black font-black'
+                                      : 'bg-white/5 text-gray-500 hover:text-white'
+                                  }`}
+                                >
+                                  LB
+                                </button>
+                              </div>
                               <span className="flex-1 max-w-[70px] text-center">REPS</span>
                               <span className="w-8 shrink-0"></span>
                             </div>
@@ -916,7 +955,7 @@ export const WorkoutHistory = () => {
                               <span className="text-gray-500 font-semibold w-9 shrink-0">Set {setIdx + 1}</span>
                               <Input
                                 type="number"
-                                placeholder="KG"
+                                placeholder={ex.weightUnit === 'lb' ? "LB" : "KG"}
                                 value={set.weight}
                                 onChange={(e) => handleUpdateFormSet(exIdx, setIdx, 'weight', e.target.value)}
                                 className="h-8 bg-black/40 text-center flex-1 max-w-[70px] text-xs border-white/10 px-1"
@@ -1085,7 +1124,38 @@ export const WorkoutHistory = () => {
                           {ex.sets.length > 0 && (
                             <div className="flex items-center gap-1.5 text-[9px] text-gray-500 font-bold px-1 mb-1 select-none">
                               <span className="w-9 shrink-0">SERIE</span>
-                              <span className="flex-1 max-w-[70px] text-center">PESO (KG)</span>
+                              <div className="flex-1 max-w-[70px] flex items-center justify-center gap-0.5">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const updated = [...formExercises];
+                                    updated[exIdx].weightUnit = 'kg';
+                                    setFormExercises(updated);
+                                  }}
+                                  className={`px-1 py-0.5 text-[8px] font-extrabold rounded ${
+                                    (ex.weightUnit || 'kg') === 'kg'
+                                      ? 'bg-primary text-black font-black'
+                                      : 'bg-white/5 text-gray-500 hover:text-white'
+                                  }`}
+                                >
+                                  KG
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const updated = [...formExercises];
+                                    updated[exIdx].weightUnit = 'lb';
+                                    setFormExercises(updated);
+                                  }}
+                                  className={`px-1 py-0.5 text-[8px] font-extrabold rounded ${
+                                    ex.weightUnit === 'lb'
+                                      ? 'bg-primary text-black font-black'
+                                      : 'bg-white/5 text-gray-500 hover:text-white'
+                                  }`}
+                                >
+                                  LB
+                                </button>
+                              </div>
                               <span className="flex-1 max-w-[70px] text-center">REPS</span>
                               <span className="w-8 shrink-0"></span>
                             </div>
@@ -1095,7 +1165,7 @@ export const WorkoutHistory = () => {
                               <span className="text-gray-500 font-semibold w-9 shrink-0">Set {setIdx + 1}</span>
                               <Input
                                 type="number"
-                                placeholder="KG"
+                                placeholder={ex.weightUnit === 'lb' ? "LB" : "KG"}
                                 value={set.weight}
                                 onChange={(e) => handleUpdateFormSet(exIdx, setIdx, 'weight', e.target.value)}
                                 className="h-8 bg-black/40 text-center flex-1 max-w-[70px] text-xs border-white/10 px-1"
@@ -1244,7 +1314,38 @@ export const WorkoutHistory = () => {
                           {ex.sets.length > 0 && (
                             <div className="flex items-center gap-1.5 text-[9px] text-gray-500 font-bold px-1 mb-1 select-none">
                               <span className="w-9 shrink-0">SERIE</span>
-                              <span className="flex-1 max-w-[70px] text-center">PESO (KG)</span>
+                              <div className="flex-1 max-w-[70px] flex items-center justify-center gap-0.5">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const updated = [...formExercises];
+                                    updated[exIdx].weightUnit = 'kg';
+                                    setFormExercises(updated);
+                                  }}
+                                  className={`px-1 py-0.5 text-[8px] font-extrabold rounded ${
+                                    (ex.weightUnit || 'kg') === 'kg'
+                                      ? 'bg-primary text-black font-black'
+                                      : 'bg-white/5 text-gray-500 hover:text-white'
+                                  }`}
+                                >
+                                  KG
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const updated = [...formExercises];
+                                    updated[exIdx].weightUnit = 'lb';
+                                    setFormExercises(updated);
+                                  }}
+                                  className={`px-1 py-0.5 text-[8px] font-extrabold rounded ${
+                                    ex.weightUnit === 'lb'
+                                      ? 'bg-primary text-black font-black'
+                                      : 'bg-white/5 text-gray-500 hover:text-white'
+                                  }`}
+                                >
+                                  LB
+                                </button>
+                              </div>
                               <span className="flex-1 max-w-[70px] text-center">REPS</span>
                               <span className="w-8 shrink-0"></span>
                             </div>
@@ -1254,7 +1355,7 @@ export const WorkoutHistory = () => {
                               <span className="text-gray-500 font-semibold w-9 shrink-0">Set {setIdx + 1}</span>
                               <Input
                                 type="number"
-                                placeholder="KG"
+                                placeholder={ex.weightUnit === 'lb' ? "LB" : "KG"}
                                 value={set.weight}
                                 onChange={(e) => handleUpdateFormSet(exIdx, setIdx, 'weight', e.target.value)}
                                 className="h-8 bg-black/40 text-center flex-1 max-w-[70px] text-xs border-white/10 px-1"
