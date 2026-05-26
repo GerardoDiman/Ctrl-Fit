@@ -26,6 +26,19 @@ interface ExerciseOption {
 
 type SessionStatus = 'planning' | 'active' | 'saving';
 
+const formatDateFriendly = (dateStr: string) => {
+  try {
+    const parts = dateStr.split('-');
+    if (parts.length === 3) {
+      const date = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+      return date.toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' });
+    }
+  } catch (e) {
+    console.error(e);
+  }
+  return dateStr;
+};
+
 export const WorkoutSession = () => {
   const [status, setStatus] = useState<SessionStatus>('planning');
   const [exercises, setExercises] = useState<ExerciseOption[]>([]);
@@ -45,6 +58,8 @@ export const WorkoutSession = () => {
   const [currentRoutineId, setCurrentRoutineId] = useState<string | null>(null);
   const [assignmentId, setAssignmentId] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const headerRef = useRef<HTMLDivElement>(null);
+  const [headerHeight, setHeaderHeight] = useState(0);
   
   // Recovery of workout session
   const [pendingWorkout, setPendingWorkout] = useState<any | null>(null);
@@ -80,6 +95,24 @@ export const WorkoutSession = () => {
       textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
     }
   }, [routineName, status]);
+
+  // Medir la altura de la cabecera pegajosa dinámicamente
+  useEffect(() => {
+    const updateHeaderHeight = () => {
+      if (headerRef.current) {
+        setHeaderHeight(headerRef.current.offsetHeight);
+      }
+    };
+
+    updateHeaderHeight();
+    const timer = setTimeout(updateHeaderHeight, 200);
+    
+    window.addEventListener('resize', updateHeaderHeight);
+    return () => {
+      window.removeEventListener('resize', updateHeaderHeight);
+      clearTimeout(timer);
+    };
+  }, [status, routineName, sessionExercises.length]);
 
   // Auto-save active workout session to localStorage
   useEffect(() => {
@@ -514,48 +547,82 @@ export const WorkoutSession = () => {
 
       {/* Sticky Header Wrapper (Masks content scrolling behind) */}
       <div 
+        ref={headerRef}
         className="sticky top-0 z-20 pt-4 pb-2 -mx-4 px-4 md:-mx-6 md:px-6 transition-all duration-300"
         style={{ backgroundColor: 'var(--color-background, #111508)' }}
       >
         {/* Dynamic Header Card */}
         <div className="bg-card p-6 rounded-xl border border-border shadow-2xl space-y-4">
-        {/* Fila 1: Información Principal de la Rutina (Icono + Título + Badges) */}
-        <div className="flex items-center gap-4 w-full">
-          <div className={`p-4 rounded-full transition-all duration-500 ${status === 'active' ? 'bg-primary shadow-[0_0_20px_rgba(var(--color-primary-rgb),0.4)]' : 'bg-white/5'}`}>
-            <Clock className={`${status === 'active' ? 'text-black animate-spin-slow' : 'text-gray-500'} h-8 w-8`} />
-          </div>
-          <div className="flex-1 min-w-0">
-            {status === 'active' ? (
-              <h2 className="text-2xl font-bold text-white leading-tight break-words mb-1">
-                {routineName}
-              </h2>
-            ) : (
-              <textarea 
-                ref={textareaRef}
-                value={routineName} 
-                onChange={(e) => setRoutineName(e.target.value)}
-                className="bg-transparent border-none text-2xl font-bold p-0 focus-visible:ring-0 text-white w-full resize-none focus:outline-none focus:ring-0 break-words leading-tight overflow-hidden mb-1"
-                placeholder="Nombre del Entrenamiento"
-                rows={1}
-                onInput={(e) => {
-                  const target = e.target as HTMLTextAreaElement;
-                  target.style.height = 'auto';
-                  target.style.height = `${target.scrollHeight}px`;
-                }}
-              />
-            )}
-            <div className="flex flex-wrap items-center gap-3 text-[10px] font-bold text-gray-500 uppercase tracking-widest">
-              <span className="text-primary px-2 py-0.5 bg-primary/10 rounded-full">
-                {status === 'planning' ? 'Planificación' : 'En Vivo'}
-              </span>
-              <div className="flex items-center gap-1.5">
-                <CalendarIcon className="h-3 w-3" />
-                <span>
-                  {isEditMode ? `Editando: ${routineName}` : (isNewRoutine ? 'Nueva Rutina - Hoy' : `Programado: ${creationDate}`)}
+        {/* Fila 1: Información Principal de la Rutina (Icono + Título + Badges + Cronómetro adaptativo) */}
+        <div className="flex items-center justify-between gap-4 w-full">
+          <div className="flex items-center gap-4 min-w-0 flex-1">
+            <div className="flex flex-col items-center gap-1.5 shrink-0">
+              <div className={`p-4 rounded-full transition-all duration-500 ${status === 'active' ? 'bg-primary shadow-[0_0_20px_rgba(var(--color-primary-rgb),0.4)]' : 'bg-white/5'}`}>
+                <Clock className={`${status === 'active' ? 'text-black animate-spin-slow' : 'text-gray-500'} h-8 w-8`} />
+              </div>
+              {/* Cronómetro para móvil (debajo del icono) */}
+              {status === 'active' && (
+                <div className="md:hidden text-center bg-primary/10 border border-primary/20 rounded-lg py-0.5 px-2 shadow-[0_0_10px_rgba(var(--color-primary-rgb),0.03)] w-full">
+                  <div className="text-[11px] font-black font-heading tabular-nums text-primary leading-tight">
+                    {formatTime(elapsedTime)}
+                  </div>
+                  <div className="text-[7px] font-extrabold text-gray-400 uppercase tracking-widest text-center mt-0.5 leading-none">
+                    Tiempo
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="min-w-0 flex-1">
+              {status === 'active' ? (
+                <h2 className="text-xl md:text-2xl font-bold text-white leading-tight break-words mb-1">
+                  {routineName}
+                </h2>
+              ) : (
+                <textarea 
+                  ref={textareaRef}
+                  value={routineName} 
+                  onChange={(e) => setRoutineName(e.target.value)}
+                  className="bg-transparent border-none text-2xl font-bold p-0 focus-visible:ring-0 text-white w-full resize-none focus:outline-none focus:ring-0 break-words leading-tight overflow-hidden mb-1"
+                  placeholder="Nombre del Entrenamiento"
+                  rows={1}
+                  onInput={(e) => {
+                    const target = e.target as HTMLTextAreaElement;
+                    target.style.height = 'auto';
+                    target.style.height = `${target.scrollHeight}px`;
+                  }}
+                />
+              )}
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] font-bold text-gray-500 uppercase tracking-widest">
+                <span className="text-primary px-2 py-0.5 bg-primary/10 rounded-full">
+                  {status === 'planning' ? 'Planificación' : 'En Vivo'}
                 </span>
+                <div className="flex items-center gap-1.5">
+                  <CalendarIcon className="h-3 w-3" />
+                  <span>
+                    {status === 'active' ? (
+                      <>
+                        {isNewRoutine ? 'Nueva Rutina' : 'Rutina Programada'} • <span className="text-gray-400 font-normal normal-case">{formatDateFriendly(selectedDate)}</span>
+                      </>
+                    ) : (
+                      isEditMode ? `Editando: ${routineName}` : (isNewRoutine ? 'Nueva Rutina - Hoy' : `Programado: ${creationDate}`)
+                    )}
+                  </span>
+                </div>
               </div>
             </div>
           </div>
+
+          {/* Cronómetro premium en la cabecera adhesiva (sólo escritorio) */}
+          {status === 'active' && (
+            <div className="hidden md:block text-right shrink-0 bg-primary/5 border border-primary/20 rounded-xl px-4 py-2 shadow-[0_0_15px_rgba(var(--color-primary-rgb),0.05)]">
+              <div className="text-3xl font-black font-heading tabular-nums text-primary">
+                {formatTime(elapsedTime)}
+              </div>
+              <div className="text-[9px] font-bold text-gray-400 uppercase tracking-widest text-center mt-0.5">
+                Tiempo
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Separador Sutil */}
@@ -563,18 +630,20 @@ export const WorkoutSession = () => {
 
         {/* Fila 2: Selector de Fecha y Controles de la Sesión */}
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
-          {/* Calendar Picker - Execution Date */}
-          <div className="flex flex-col gap-1.5 w-full sm:w-auto">
-            <span className="text-[10px] font-bold text-gray-500 uppercase ml-1">Fecha de Entrenamiento</span>
-            <DatePicker 
-              value={selectedDate}
-              onChange={setSelectedDate}
-              disabled={status === 'active'}
-              className="w-full sm:w-[240px]"
-            />
-          </div>
+          {/* Calendar Picker - Execution Date (Se oculta al iniciar entrenamiento activo) */}
+          {status !== 'active' && (
+            <div className="flex flex-col gap-1.5 w-full sm:w-auto">
+              <span className="text-[10px] font-bold text-gray-500 uppercase ml-1">Fecha de Entrenamiento</span>
+              <DatePicker 
+                value={selectedDate}
+                onChange={setSelectedDate}
+                disabled={status === 'active'}
+                className="w-full sm:w-[240px]"
+              />
+            </div>
+          )}
 
-          <div className="flex gap-3 w-full sm:w-auto">
+          <div className="flex gap-3 w-full sm:w-auto ml-auto">
             {status === 'planning' ? (
               <>
                 <Button variant="outline" className="flex-1 sm:flex-none sm:w-[130px]" onClick={saveRoutine}>
@@ -604,19 +673,22 @@ export const WorkoutSession = () => {
       <div className="space-y-4">
         <div className="flex justify-between items-center px-2">
             <h3 className="text-lg font-bold font-heading">Ejercicios</h3>
-            <div className="text-4xl font-black font-heading tabular-nums text-primary/80">
-              {formatTime(elapsedTime)}
+            <div className="text-xs font-bold text-gray-500 uppercase tracking-widest">
+              {sessionExercises.length} {sessionExercises.length === 1 ? 'Ejercicio' : 'Ejercicios'}
             </div>
         </div>
 
         {sessionExercises.map((ex, exIdx) => (
-          <Card key={exIdx} className="overflow-hidden border-white/5 bg-black/20">
-            <CardHeader className="flex flex-row items-center justify-between bg-white/5 py-4 px-6">
-              <div className="flex items-center gap-4">
-                <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold">
+          <Card key={exIdx} className="border-white/5 bg-black/20 rounded-xl">
+            <CardHeader 
+              className="sticky z-10 flex flex-row items-center justify-between bg-[#1a2408]/96 backdrop-blur-md py-3 px-4 md:py-4 md:px-6 border-b border-primary/20 rounded-t-xl"
+              style={{ top: `${headerHeight}px` }}
+            >
+              <div className="flex items-center gap-3 md:gap-4 min-w-0">
+                <div className="h-7 w-7 md:h-8 md:w-8 text-xs md:text-sm rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold shrink-0">
                   {exIdx + 1}
                 </div>
-                <CardTitle>{ex.name}</CardTitle>
+                <CardTitle className="text-sm md:text-base font-bold leading-tight break-words min-w-0 flex-1">{ex.name}</CardTitle>
               </div>
               {status === 'planning' && (
                 <Button 
@@ -627,12 +699,13 @@ export const WorkoutSession = () => {
                       setSessionExercises(sessionExercises.filter((_, i) => i !== exIdx));
                     }
                   }}
+                  className="shrink-0 ml-2"
                 >
                   <Trash2 className="h-5 w-5 text-gray-500 hover:text-red-500" />
                 </Button>
               )}
             </CardHeader>
-            <CardContent className="p-6">
+            <CardContent className="p-4 md:p-6">
                 <div className="grid grid-cols-12 gap-4 mb-3 text-[10px] font-bold text-gray-500 uppercase">
                     <div className="col-span-2 text-center">Set</div>
                     <div className="col-span-4 text-center">Peso (KG)</div>
