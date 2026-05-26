@@ -43,63 +43,75 @@ export function CatalogList({ items, searchTerm, loading, onDelete, onEdit, rend
   }
 
   return (
-    <div className="space-y-2 max-h-[450px] overflow-y-auto pr-2 custom-scrollbar">
+    <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-4 max-h-[600px] overflow-y-auto pr-2 pb-6 custom-scrollbar">
       {filtered.map((item) => (
         <div 
           key={item.id} 
-          className="flex items-center justify-between p-2.5 rounded-lg bg-white/5 border border-white/5 hover:border-primary/20 transition-all group"
+          className="relative flex flex-col rounded-xl bg-zinc-900/30 border border-white/5 hover:border-primary/20 hover:bg-zinc-900/60 transition-all group overflow-hidden"
         >
-          <div className="flex items-center gap-3 min-w-0 flex-1">
-            {item.image_url ? (
-              <img 
-                src={item.image_url} 
-                alt={item.name} 
-                className="h-10 w-10 shrink-0 object-cover rounded-lg bg-zinc-900 border border-white/10" 
-              />
-            ) : (
-              <div className="h-10 w-10 shrink-0 rounded-lg bg-zinc-900 border border-white/10 flex items-center justify-center text-gray-600 select-none">
-                <ImageIcon className="h-4.5 w-4.5 text-gray-600" />
-              </div>
-            )}
-            <div className="min-w-0 flex-1">
-              <p className="font-medium text-sm text-gray-200 truncate">{item.name}</p>
-              {renderExtraBadge ? (
-                renderExtraBadge(item)
-              ) : (
-                <div className="flex gap-1.5 mt-0.5 flex-wrap">
-                  {item.muscle_groups?.name && (
-                    <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 font-semibold">
-                      {item.muscle_groups.name}
-                    </span>
-                  )}
-                  {item.machines?.name && (
-                    <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20 font-semibold">
-                      {item.machines.name}
-                    </span>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-          <div className="flex gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity shrink-0">
+          {/* Botones de Acción Absolutos */}
+          <div className="absolute top-2 right-2 flex gap-1 z-10 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all duration-200 bg-black/60 backdrop-blur-sm p-0.5 rounded-lg border border-white/5">
             {onEdit && (
               <Button 
                 variant="ghost" 
                 size="icon" 
-                className="h-8 w-8 text-primary hover:text-primary-foreground hover:bg-primary/10" 
+                className="h-7 w-7 text-primary hover:text-black hover:bg-primary rounded-md transition-all" 
                 onClick={() => onEdit(item)}
+                title="Editar"
               >
-                <Edit2 className="h-4 w-4" />
+                <Edit2 className="h-3.5 w-3.5" />
               </Button>
             )}
             <Button 
               variant="ghost" 
               size="icon" 
-              className="h-8 w-8 text-red-400 hover:text-red-300 hover:bg-red-500/10" 
+              className="h-7 w-7 text-red-400 hover:text-white hover:bg-red-500 rounded-md transition-all" 
               onClick={() => onDelete(item.id)}
+              title="Eliminar"
             >
-              <Trash2 className="h-4 w-4" />
+              <Trash2 className="h-3.5 w-3.5" />
             </Button>
+          </div>
+
+          {/* Imagen de Referencia / Placeholder */}
+          <div className="w-full aspect-[4/3] shrink-0 bg-zinc-950/80 border-b border-white/5 overflow-hidden flex items-center justify-center relative select-none">
+            {item.image_url ? (
+              <img 
+                src={item.image_url} 
+                alt={item.name} 
+                className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" 
+              />
+            ) : (
+              <div className="flex flex-col items-center justify-center gap-1.5 text-gray-600">
+                <ImageIcon className="h-7 w-7 text-gray-700" />
+                <span className="text-[9px] text-gray-500 uppercase font-bold tracking-wider">Sin Imagen</span>
+              </div>
+            )}
+          </div>
+
+          {/* Detalles e Información */}
+          <div className="p-3 flex flex-col flex-1 min-w-0 justify-between gap-2">
+            <div className="min-w-0">
+              <p className="font-bold text-sm text-gray-200 truncate group-hover:text-white transition-colors" title={item.name}>
+                {item.name}
+              </p>
+            </div>
+            {renderExtraBadge ? (
+              renderExtraBadge(item)
+            ) : (
+              <div className="flex gap-1.5 flex-wrap">
+                {item.muscle_groups?.name && (
+                  <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 font-bold uppercase tracking-wider select-none">
+                    {item.muscle_groups.name}
+                  </span>
+                )}
+                {item.machines?.name && (
+                  <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20 font-bold uppercase tracking-wider select-none">
+                    {item.machines.name}
+                  </span>
+                )}
+              </div>
+            )}
           </div>
         </div>
       ))}

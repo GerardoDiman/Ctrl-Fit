@@ -41,6 +41,7 @@ export function ManagementDashboard() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [existingImageUrl, setExistingImageUrl] = useState<string | null>(null);
   const [isImageRemoved, setIsImageRemoved] = useState(false);
+  const [uploaderKey, setUploaderKey] = useState(0);
 
   useEffect(() => {
     fetchData();
@@ -93,6 +94,32 @@ export function ManagementDashboard() {
       return null;
     }
   };
+  const extractStoragePath = (url: string | null): string | null => {
+    if (!url) return null;
+    const marker = '/storage/v1/object/public/catalog_images/';
+    const index = url.indexOf(marker);
+    if (index !== -1) {
+      return url.substring(index + marker.length);
+    }
+    return null;
+  };
+
+  const deleteImageFromStorage = async (url: string | null) => {
+    if (!url) return;
+    try {
+      const path = extractStoragePath(url);
+      if (path) {
+        const { error } = await supabase.storage
+          .from('catalog_images')
+          .remove([path]);
+        if (error) {
+          console.error('Error al borrar imagen de Supabase Storage:', error);
+        }
+      }
+    } catch (e) {
+      console.error('Excepción al borrar imagen:', e);
+    }
+  };
 
   const handleAddExercise = async () => {
     if (!newItemName.trim()) return;
@@ -114,6 +141,7 @@ export function ManagementDashboard() {
       setSelectedFile(null);
       setExistingImageUrl(null);
       setIsImageRemoved(false);
+      setUploaderKey(prev => prev + 1);
       fetchData(); // Refetch to get names of relations
     }
   };
@@ -136,6 +164,7 @@ export function ManagementDashboard() {
       setSelectedFile(null);
       setExistingImageUrl(null);
       setIsImageRemoved(false);
+      setUploaderKey(prev => prev + 1);
     }
   };
 
@@ -157,13 +186,28 @@ export function ManagementDashboard() {
       setSelectedFile(null);
       setExistingImageUrl(null);
       setIsImageRemoved(false);
+      setUploaderKey(prev => prev + 1);
     }
   };
 
   const handleDelete = async (table: string, id: string) => {
     if (!confirm('¿Estás seguro de eliminar este elemento?')) return;
+    
+    // 1. Buscar el elemento para capturar la URL antes de eliminar de DB
+    let itemToDelete = null;
+    if (table === 'exercises') itemToDelete = exercises.find(x => x.id === id);
+    if (table === 'muscle_groups') itemToDelete = muscleGroups.find(x => x.id === id);
+    if (table === 'machines') itemToDelete = machines.find(x => x.id === id);
+    const imageUrl = itemToDelete?.image_url;
+
+    // 2. Eliminar de base de datos
     const { error } = await supabase.from(table).delete().eq('id', id);
     if (!error) {
+      // 3. Si tenía imagen, borrarla del Storage físico
+      if (imageUrl) {
+        await deleteImageFromStorage(imageUrl);
+      }
+
       if (table === 'exercises') setExercises(exercises.filter(x => x.id !== id));
       if (table === 'muscle_groups') setMuscleGroups(muscleGroups.filter(x => x.id !== id));
       if (table === 'machines') setMachines(machines.filter(x => x.id !== id));
@@ -186,12 +230,20 @@ export function ManagementDashboard() {
     if (!newItemName.trim() || !editingId) return;
 
     let finalImageUrl = existingImageUrl;
+    let shouldDeleteOldImage = false;
+    const oldImageUrlToDelete = existingImageUrl;
+
     if (isImageRemoved) {
       finalImageUrl = null;
+      shouldDeleteOldImage = true;
     }
     if (selectedFile) {
       const folder = activeTab === 'exercises' ? 'exercises' : activeTab === 'muscle_groups' ? 'muscle_groups' : 'machines';
-      finalImageUrl = await uploadImage(selectedFile, folder);
+      const newUrl = await uploadImage(selectedFile, folder);
+      if (newUrl) {
+        finalImageUrl = newUrl;
+        shouldDeleteOldImage = true; // borrar la anterior porque la reemplazamos
+      }
     }
 
     if (activeTab === 'exercises') {
@@ -203,6 +255,9 @@ export function ManagementDashboard() {
       }).eq('id', editingId);
 
       if (!error) {
+        if (shouldDeleteOldImage && oldImageUrlToDelete) {
+          await deleteImageFromStorage(oldImageUrlToDelete);
+        }
         setEditingId(null);
         setNewItemName('');
         setSelectedMuscleGroupId('');
@@ -210,6 +265,7 @@ export function ManagementDashboard() {
         setSelectedFile(null);
         setExistingImageUrl(null);
         setIsImageRemoved(false);
+        setUploaderKey(prev => prev + 1);
         fetchData();
       }
     } else if (activeTab === 'muscle_groups') {
@@ -219,11 +275,15 @@ export function ManagementDashboard() {
       }).eq('id', editingId);
 
       if (!error) {
+        if (shouldDeleteOldImage && oldImageUrlToDelete) {
+          await deleteImageFromStorage(oldImageUrlToDelete);
+        }
         setEditingId(null);
         setNewItemName('');
         setSelectedFile(null);
         setExistingImageUrl(null);
         setIsImageRemoved(false);
+        setUploaderKey(prev => prev + 1);
         fetchData();
       }
     } else if (activeTab === 'machines') {
@@ -233,11 +293,15 @@ export function ManagementDashboard() {
       }).eq('id', editingId);
 
       if (!error) {
+        if (shouldDeleteOldImage && oldImageUrlToDelete) {
+          await deleteImageFromStorage(oldImageUrlToDelete);
+        }
         setEditingId(null);
         setNewItemName('');
         setSelectedFile(null);
         setExistingImageUrl(null);
         setIsImageRemoved(false);
+        setUploaderKey(prev => prev + 1);
         fetchData();
       }
     }
@@ -251,6 +315,7 @@ export function ManagementDashboard() {
     setSelectedFile(null);
     setExistingImageUrl(null);
     setIsImageRemoved(false);
+    setUploaderKey(prev => prev + 1);
   };
 
   const getProcessedExercises = () => {
@@ -408,6 +473,7 @@ export function ManagementDashboard() {
               <div className="space-y-2 pt-2 border-t border-white/5">
                 <label className="text-xs font-bold text-gray-500 uppercase">Imagen de Referencia</label>
                 <ImageUploader
+                  key={`${activeTab}-${editingId || 'new'}-${uploaderKey}`}
                   value={existingImageUrl}
                   onChange={(file) => setSelectedFile(file)}
                   onRemove={() => setIsImageRemoved(true)}
