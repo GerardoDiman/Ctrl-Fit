@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Plus, X, CheckCircle2 } from 'lucide-react';
+import { Plus, X, CheckCircle2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { format, isSameDay, startOfMonth, endOfMonth } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { InteractiveCalendar } from '@/components/ui/InteractiveCalendar';
