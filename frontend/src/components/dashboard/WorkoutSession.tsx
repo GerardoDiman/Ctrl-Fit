@@ -4,7 +4,7 @@ import { useAuth } from '@/lib/useAuth';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Plus, Trash2, Clock, Check, Save, Play, Square, Loader2, Calendar as CalendarIcon, X } from 'lucide-react';
+import { Plus, Trash2, Clock, Check, Save, Play, Square, Loader2, Calendar as CalendarIcon, X, RefreshCw } from 'lucide-react';
 import { DatePicker } from '@/components/ui/DatePicker';
 
 interface Set {
@@ -44,6 +44,7 @@ export const WorkoutSession = () => {
   const [status, setStatus] = useState<SessionStatus>('planning');
   const [exercises, setExercises] = useState<ExerciseOption[]>([]);
   const [sessionExercises, setSessionExercises] = useState<WorkoutExercise[]>([]);
+  const [replacingExerciseIndex, setReplacingExerciseIndex] = useState<number | null>(null);
   const [startTime, setStartTime] = useState<Date | null>(null);
   const [elapsedTime, setElapsedTime] = useState(0);
   const [showExerciseSelector, setShowExerciseSelector] = useState(false);
@@ -483,7 +484,7 @@ export const WorkoutSession = () => {
       setExercises(prev => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)));
       
       // Añadir a la sesión actual
-      addExercise(data);
+      handleSelectExercise(data);
       
       // Limpiar y cerrar
       setNewExerciseName('');
@@ -496,13 +497,84 @@ export const WorkoutSession = () => {
     }
   };
 
-  const addExercise = (exercise: ExerciseOption) => {
-    setSessionExercises([...sessionExercises, {
-      id: exercise.id,
-      name: exercise.name,
-      weightUnit: 'kg',
-      sets: [{ weight: '', reps: '', completed: false }]
-    }]);
+  const fetchLastWeightsForExercise = async (userId: string, exerciseId: string) => {
+    try {
+      const { data: userSessions } = await supabase
+        .from('workout_sessions')
+        .select('id')
+        .eq('user_id', userId)
+        .order('end_time', { ascending: false })
+        .limit(10);
+
+      if (userSessions && userSessions.length > 0) {
+        const { data: logs } = await supabase
+          .from('workout_logs')
+          .select('session_id, weight, reps, weight_unit, set_number')
+          .in('session_id', userSessions.map(s => s.id))
+          .eq('exercise_id', exerciseId)
+          .order('session_id', { ascending: false })
+          .order('set_number', { ascending: true });
+
+        if (logs && logs.length > 0) {
+          const mostRecentSessionId = logs[0].session_id;
+          const targetLogs = logs.filter(l => l.session_id === mostRecentSessionId);
+          return targetLogs.map(l => ({
+            weight: l.weight !== null ? l.weight.toString() : '',
+            reps: l.reps !== null ? l.reps.toString() : '',
+            weightUnit: (l.weight_unit || 'kg') as 'kg' | 'lb'
+          }));
+        }
+      }
+    } catch (e) {
+      console.error('Error fetching last weights for exercise:', e);
+    }
+    return null;
+  };
+
+  const handleSelectExercise = async (exercise: ExerciseOption) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    const userId = session?.user?.id;
+
+    let setsData: Set[] = [{ weight: '', reps: '', completed: false }];
+    let weightUnit: 'kg' | 'lb' = 'kg';
+
+    if (userId) {
+      const history = await fetchLastWeightsForExercise(userId, exercise.id);
+      if (history && history.length > 0) {
+        setsData = history.map(h => ({
+          weight: h.weight,
+          reps: h.reps,
+          completed: false
+        }));
+        weightUnit = history[0].weightUnit || 'kg';
+      } else if (replacingExerciseIndex !== null) {
+        const originalSetsCount = sessionExercises[replacingExerciseIndex].sets.length;
+        setsData = Array.from({ length: originalSetsCount }).map(() => ({
+          weight: '',
+          reps: '',
+          completed: false
+        }));
+      }
+    }
+
+    if (replacingExerciseIndex !== null) {
+      const updated = [...sessionExercises];
+      updated[replacingExerciseIndex] = {
+        id: exercise.id,
+        name: exercise.name,
+        sets: setsData,
+        weightUnit
+      };
+      setSessionExercises(updated);
+      setReplacingExerciseIndex(null);
+    } else {
+      setSessionExercises([...sessionExercises, {
+        id: exercise.id,
+        name: exercise.name,
+        weightUnit,
+        sets: setsData
+      }]);
+    }
     setShowExerciseSelector(false);
   };
 
@@ -523,6 +595,10 @@ export const WorkoutSession = () => {
       alert('Un ejercicio debe tener al menos una serie. Si deseas quitar el ejercicio completo, usa el botón de eliminar de arriba.');
     }
   };
+
+  const completedExercisesCount = sessionExercises.filter(ex => 
+    ex.sets.every(set => set.completed)
+  ).length;
 
   return (
     <div className="space-y-6 pb-20">
@@ -602,6 +678,11 @@ export const WorkoutSession = () => {
                 <span className="text-primary px-2 py-0.5 bg-primary/10 rounded-full">
                   {status === 'planning' ? 'Planificación' : 'En Vivo'}
                 </span>
+                {status === 'active' && (
+                  <span className="text-white px-2 py-0.5 bg-white/5 border border-white/10 rounded-full font-extrabold normal-case">
+                    {completedExercisesCount} de {sessionExercises.length} completados
+                  </span>
+                )}
                 <div className="flex items-center gap-1.5">
                   <CalendarIcon className="h-3 w-3" />
                   <span>
@@ -696,20 +777,34 @@ export const WorkoutSession = () => {
                 </div>
                 <CardTitle className="text-sm md:text-base font-bold leading-tight break-words min-w-0 flex-1">{ex.name}</CardTitle>
               </div>
-              {status === 'planning' && (
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
+              <div className="flex items-center gap-2 shrink-0 ml-2">
+                <Button
+                  variant="ghost"
+                  size="icon"
                   onClick={() => {
-                    if (window.confirm('¿Estás seguro de que deseas eliminar este ejercicio de la rutina?')) {
-                      setSessionExercises(sessionExercises.filter((_, i) => i !== exIdx));
-                    }
+                    setReplacingExerciseIndex(exIdx);
+                    setShowExerciseSelector(true);
                   }}
-                  className="h-8 w-8 rounded-full shrink-0 ml-2 text-gray-500 hover:text-red-500 hover:bg-red-500/10 flex items-center justify-center"
+                  className="h-8 w-8 rounded-full text-primary hover:text-primary hover:bg-primary/10 flex items-center justify-center shrink-0"
+                  title="Reemplazar Ejercicio"
                 >
-                  <X className="h-5 w-5" />
+                  <RefreshCw className="h-4.5 w-4.5" />
                 </Button>
-              )}
+                {status === 'planning' && (
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    onClick={() => {
+                      if (window.confirm('¿Estás seguro de que deseas eliminar este ejercicio de la rutina?')) {
+                        setSessionExercises(sessionExercises.filter((_, i) => i !== exIdx));
+                      }
+                    }}
+                    className="h-8 w-8 rounded-full text-gray-500 hover:text-red-500 hover:bg-red-500/10 flex items-center justify-center"
+                  >
+                    <X className="h-5 w-5" />
+                  </Button>
+                )}
+              </div>
             </div>
             <CardContent className="p-4 md:p-6">
                 <div className="grid grid-cols-12 gap-4 mb-3 text-[10px] font-bold text-gray-500 uppercase items-center">
@@ -810,10 +905,16 @@ export const WorkoutSession = () => {
           <Card className="w-full max-w-lg border-primary bg-zinc-950">
             <CardHeader>
               <div className="flex justify-between items-center">
-                <CardTitle>{isCreatingExercise ? 'Crear Nuevo Ejercicio' : 'Añadir Ejercicio'}</CardTitle>
+                <CardTitle>
+                  {isCreatingExercise 
+                    ? 'Crear Nuevo Ejercicio' 
+                    : (replacingExerciseIndex !== null ? 'Reemplazar Ejercicio' : 'Añadir Ejercicio')
+                  }
+                </CardTitle>
                 <Button variant="ghost" onClick={() => {
                   setShowExerciseSelector(false);
                   setIsCreatingExercise(false);
+                  setReplacingExerciseIndex(null);
                 }}>X</Button>
               </div>
               {!isCreatingExercise && (
@@ -859,7 +960,7 @@ export const WorkoutSession = () => {
                     {exercises
                       .filter(e => e.name.toLowerCase().includes(searchTerm.toLowerCase()))
                       .map(e => (
-                        <Button key={e.id} variant="ghost" className="w-full justify-start h-12 hover:bg-primary/10 hover:text-primary transition-colors" onClick={() => addExercise(e)}>
+                        <Button key={e.id} variant="ghost" className="w-full justify-start h-12 hover:bg-primary/10 hover:text-primary transition-colors" onClick={() => handleSelectExercise(e)}>
                           {e.name}
                         </Button>
                       ))
