@@ -1,3 +1,39 @@
 ---
-return Astro.redirect('/dashboard/management');
+import Layout from '../../layouts/Layout.astro';
+import { RoutineList } from '@/components/dashboard/RoutineList';
+import { ArrowLeft } from 'lucide-react';
 ---
+
+<script>
+	import { supabase } from '@/lib/supabase';
+	
+	// Check auth state
+	supabase.auth.getSession().then(({ data: { session } }) => {
+		if (!session) {
+			window.location.href = '/auth';
+		}
+	});
+
+	// Listen for auth changes
+	supabase.auth.onAuthStateChange((event, session) => {
+		if (event === 'SIGNED_OUT' || !session) {
+			window.location.href = '/auth';
+		}
+	});
+</script>
+
+<Layout title="Mis Rutinas | Ctrl + Fit">
+	<div class="container mx-auto px-4 pb-20 pt-6 max-w-4xl">
+		<header class="mb-8">
+			<div class="flex items-center gap-2 text-sm text-gray-500 font-bold uppercase tracking-wider mb-1">
+				<a href="/dashboard" class="hover:text-primary transition-colors flex items-center gap-1">
+					<ArrowLeft class="h-3.5 w-3.5" /> Volver al Dashboard
+				</a>
+			</div>
+			<h1 class="text-3xl font-extrabold font-heading text-white">Mis Rutinas</h1>
+			<p class="text-sm text-gray-400">Diseña tus plantillas de entrenamiento para ejecutarlas después o realizar seguimiento.</p>
+		</header>
+
+		<RoutineList client:load />
+	</div>
+</Layout>

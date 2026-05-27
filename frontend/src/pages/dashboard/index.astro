@@ -1,9 +1,7 @@
 ---
 import Layout from '../../layouts/Layout.astro';
 import { WorkoutStats } from '@/components/dashboard/WorkoutStats';
-import { RoutineList } from '@/components/dashboard/RoutineList';
 import { StudentViewCalendar } from '@/components/dashboard/StudentViewCalendar';
-import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
 ---
 
 <script>
@@ -26,9 +24,19 @@ import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/com
 
 <Layout title="Dashboard | Ctrl + Fit">
 	<div class="container mx-auto px-4 max-w-5xl">
-		<header class="mb-8">
-			<h1 class="text-3xl font-bold font-heading text-white">Tu Rendimiento</h1>
-			<p class="text-gray-400">Resumen de la semana actual y planificación.</p>
+		<header class="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-white/5 pb-6">
+			<div>
+				<h1 class="text-3xl font-extrabold font-heading text-white">Tu Rendimiento</h1>
+				<p class="text-sm text-gray-400 mt-1">Resumen de la semana actual y planificación.</p>
+			</div>
+			<div class="shrink-0">
+				<a 
+					href="/dashboard/workout" 
+					class="inline-flex items-center justify-center bg-primary text-black hover:bg-primary/90 font-bold px-6 py-3 rounded-md text-sm transition-all shadow-[0_0_15px_rgba(195,244,0,0.15)] cursor-pointer"
+				>
+					Entrenar Ahora
+				</a>
+			</div>
 		</header>
 
 		<!-- Stats Grid Dinámico -->
@@ -36,21 +44,19 @@ import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/com
 
 		<!-- Calendario de Planificación -->
 		<section class="mb-12">
-			<header class="mb-4 flex justify-between items-center border-b border-white/5 pb-2">
+			<header class="mb-4 flex flex-col sm:flex-row sm:items-center justify-between border-b border-white/5 pb-2 gap-2">
 				<h2 class="text-xl font-bold font-heading text-primary">Planificación de Entrenamientos</h2>
-				<a href="/dashboard/history" class="text-xs font-bold text-gray-400 hover:text-primary transition-colors flex items-center gap-1">
-					Ver Historial y Agenda →
-				</a>
+				<div class="flex items-center gap-4 text-xs font-bold text-gray-400">
+					<a href="/dashboard/routines" class="hover:text-primary transition-colors flex items-center gap-1">
+						Mis Rutinas Guardadas →
+					</a>
+					<span class="text-white/10">|</span>
+					<a href="/dashboard/history" class="hover:text-primary transition-colors flex items-center gap-1">
+						Historial y Agenda →
+					</a>
+				</div>
 			</header>
 			<StudentViewCalendar client:load />
-		</section>
-
-		<!-- Mis Rutinas -->
-		<section>
-			<header class="mb-4">
-				<h2 class="text-xl font-bold font-heading text-white border-b border-white/5 pb-2">Mis Rutinas Guardadas</h2>
-			</header>
-			<RoutineList client:load />
 		</section>
 	</div>
 </Layout>

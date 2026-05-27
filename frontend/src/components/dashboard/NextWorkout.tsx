@@ -78,7 +78,7 @@ export const NextWorkout = () => {
           {routine.routine_exercises?.length || 0} Ejercicios • 45 - 60 minutos
         </p>
         <a href={`/dashboard/workout?routineId=${routine.id}`} className="block w-full bg-primary text-black text-center font-bold rounded-sm py-4 hover:bg-primary/90 hover:scale-[1.02] transition-all shadow-lg">
-          Iniciar Entrenamiento
+          Preparar Entrenamiento
         </a>
       </CardContent>
     </Card>

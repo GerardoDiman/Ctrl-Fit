@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -14,10 +14,17 @@ import {
   Save, 
   ArrowLeft,
   ChevronRight,
+  ChevronLeft,
+  Search,
   Info,
   CalendarDays,
   FileText,
-  AlertCircle
+  AlertCircle,
+  RefreshCw,
+  Loader2,
+  Activity,
+  Cpu,
+  Dumbbell
 } from 'lucide-react';
 import { format, parseISO, differenceInMinutes } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -31,6 +38,7 @@ interface Session {
   end_time: string;
   notes: string | null;
   routine_id: string | null;
+  assignment_id?: string | null;
 }
 
 interface Assignment {
@@ -70,16 +78,47 @@ interface FormExercise {
   weightUnit?: 'kg' | 'lb';
 }
 
-type ActiveTab = 'sessions' | 'agenda';
+type RecordType = 'session' | 'assignment';
+
+interface HelpExerciseData {
+  name: string;
+  description: string | null;
+  image_url: string | null;
+  muscle_groups: {
+    name: string;
+    description: string | null;
+    image_url: string | null;
+  } | null;
+  machines: {
+    name: string;
+    description: string | null;
+    image_url: string | null;
+  } | null;
+}
+
+interface UnifiedRecord {
+  id: string;
+  type: RecordType;
+  name: string;
+  date: Date;
+  rawDate: string;
+  completed: boolean;
+  data: any; // Mapeamos a any para simplificar el tipado y renderizado flexible
+}
 
 export const WorkoutHistory = () => {
-  const [activeTab, setActiveTab] = useState<ActiveTab>('sessions');
   const [userId, setUserId] = useState<string | null>(null);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [routines, setRoutines] = useState<RoutineTemplate[]>([]);
   const [exercisesCatalog, setExercisesCatalog] = useState<ExerciseOption[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Filter & Pagination states
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'completed' | 'pending'>('all');
+  const [currentPage, setCurrentPage] = useState(1);
+  const recordsPerPage = 50;
 
   // Modals state
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -100,6 +139,13 @@ export const WorkoutHistory = () => {
   const [formRoutineId, setFormRoutineId] = useState('');
   const [formExercises, setFormExercises] = useState<FormExercise[]>([]);
   const [exerciseSearchTerm, setExerciseSearchTerm] = useState('');
+
+  // Reemplazo y Ayuda Visual
+  const [replacingExerciseIndex, setReplacingExerciseIndex] = useState<number | null>(null);
+  const [showHelpModal, setShowHelpModal] = useState(false);
+  const [loadingHelpId, setLoadingHelpId] = useState<string | null>(null);
+  const [helpData, setHelpData] = useState<HelpExerciseData | null>(null);
+  const [activeHelpTab, setActiveHelpTab] = useState<'exercise' | 'machine' | 'muscle'>('exercise');
 
   // Fetch initial data
   useEffect(() => {
@@ -161,6 +207,62 @@ export const WorkoutHistory = () => {
       setLoading(false);
     }
   };
+
+  // 1. Combinar sesiones completadas y asignaciones de la agenda que están pendientes
+  const combinedRecords: UnifiedRecord[] = useMemo(() => {
+    const sessionRecs: UnifiedRecord[] = sessions.map(s => ({
+      id: s.id,
+      type: 'session',
+      name: s.name,
+      date: new Date(s.start_time),
+      rawDate: s.start_time,
+      completed: true,
+      data: s
+    }));
+
+    const pendingRecs: UnifiedRecord[] = assignments
+      .filter(a => !a.completed)
+      .map(a => ({
+        id: a.id,
+        type: 'assignment',
+        name: a.routines.name,
+        date: new Date(a.scheduled_date + 'T12:00:00'),
+        rawDate: a.scheduled_date,
+        completed: false,
+        data: a
+      }));
+
+    return [...sessionRecs, ...pendingRecs].sort((a, b) => b.date.getTime() - a.date.getTime());
+  }, [sessions, assignments]);
+
+  // 2. Filtrar registros por término de búsqueda y filtro de estado
+  const filteredRecords = useMemo(() => {
+    return combinedRecords.filter(rec => {
+      const matchesSearch = rec.name.toLowerCase().includes(searchTerm.toLowerCase());
+
+      let matchesStatus = true;
+      if (statusFilter === 'completed') {
+        matchesStatus = rec.type === 'session';
+      } else if (statusFilter === 'pending') {
+        matchesStatus = rec.type === 'assignment';
+      }
+
+      return matchesSearch && matchesStatus;
+    });
+  }, [combinedRecords, searchTerm, statusFilter]);
+
+  // 3. Resetear página a 1 si cambian los filtros
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, statusFilter]);
+
+  // 4. Obtener registros de la página actual
+  const paginatedRecords = useMemo(() => {
+    const startIndex = (currentPage - 1) * recordsPerPage;
+    return filteredRecords.slice(startIndex, startIndex + recordsPerPage);
+  }, [filteredRecords, currentPage]);
+
+  const totalPages = Math.ceil(filteredRecords.length / recordsPerPage);
 
   // Helper: Fetch routine exercises and load into formExercises state
   const loadRoutineExercisesForForm = async (routineId: string) => {
@@ -327,21 +429,65 @@ export const WorkoutHistory = () => {
   };
 
   const handleAddFormExercise = (ex: ExerciseOption) => {
-    if (formExercises.some(fe => fe.exerciseId === ex.id)) {
+    if (formExercises.some((fe, idx) => fe.exerciseId === ex.id && idx !== replacingExerciseIndex)) {
       alert('Este ejercicio ya está agregado en la sesión.');
       return;
     }
-    setFormExercises([
-      ...formExercises,
-      {
+
+    if (replacingExerciseIndex !== null) {
+      const updated = [...formExercises];
+      const originalSetsCount = updated[replacingExerciseIndex].sets.length;
+      updated[replacingExerciseIndex] = {
         exerciseId: ex.id,
         name: ex.name,
         weightUnit: 'kg',
-        sets: [{ weight: '', reps: '' }]
-      }
-    ]);
+        sets: Array.from({ length: originalSetsCount }).map(() => ({ weight: '', reps: '' }))
+      };
+      setFormExercises(updated);
+      setReplacingExerciseIndex(null);
+    } else {
+      setFormExercises([
+        ...formExercises,
+        {
+          exerciseId: ex.id,
+          name: ex.name,
+          weightUnit: 'kg',
+          sets: [{ weight: '', reps: '' }]
+        }
+      ]);
+    }
     setShowAddExerciseSelector(false);
     setExerciseSearchTerm('');
+  };
+
+  const fetchExerciseHelpData = async (exerciseId: string) => {
+    setLoadingHelpId(exerciseId);
+    try {
+      const { data, error } = await supabase
+        .from('exercises')
+        .select(`
+          name,
+          description,
+          image_url,
+          muscle_groups (name, description, image_url),
+          machines (name, description, image_url)
+        `)
+        .eq('id', exerciseId)
+        .single();
+      
+      if (!error && data) {
+        setHelpData(data as any);
+        setActiveHelpTab('exercise');
+        setShowHelpModal(true);
+      } else {
+        alert("No se pudo cargar la información de ayuda de este ejercicio.");
+      }
+    } catch (e) {
+      console.error('Error fetching exercise help data:', e);
+      alert("Error al conectar con la base de datos.");
+    } finally {
+      setLoadingHelpId(null);
+    }
   };
 
   // Open Edit Session Modal
@@ -430,6 +576,9 @@ export const WorkoutHistory = () => {
     if (!window.confirm('¿Estás seguro de que deseas eliminar este entrenamiento permanentemente de tu historial?')) return;
 
     try {
+      // Buscar la sesión en el estado local para ver si tiene una asignación vinculada
+      const sessionToDelete = sessions.find(s => s.id === sessionId);
+
       // 1. Delete associated logs first to prevent FK constraint issues
       await supabase
         .from('workout_logs')
@@ -444,6 +593,16 @@ export const WorkoutHistory = () => {
         .eq('user_id', userId);
 
       if (error) throw error;
+
+      // 3. Si la sesión eliminada tenía un assignment_id, actualizar la asignación a completada = false
+      if (sessionToDelete?.assignment_id) {
+        const { error: assignmentError } = await supabase
+          .from('routine_assignments')
+          .update({ completed: false })
+          .eq('id', sessionToDelete.assignment_id);
+        
+        if (assignmentError) console.error('Error actualizando asignación a pendiente:', assignmentError);
+      }
 
       await fetchData(userId);
     } catch (e) {
@@ -583,6 +742,7 @@ export const WorkoutHistory = () => {
         .insert({
           user_id: userId,
           routine_id: selectedAssignment.routine_id,
+          assignment_id: selectedAssignment.id,
           name: selectedAssignment.routines.name,
           start_time: startObj.toISOString(),
           end_time: endObj.toISOString(),
@@ -651,30 +811,60 @@ export const WorkoutHistory = () => {
         </div>
       </div>
 
-      {/* Selector de Pestañas */}
-      <div className="flex border-b border-white/5 overflow-x-auto no-scrollbar flex-nowrap">
-        <button
-          onClick={() => setActiveTab('sessions')}
-          className={`px-4 sm:px-6 py-3 text-xs sm:text-sm font-bold border-b-2 transition-all whitespace-nowrap ${
-            activeTab === 'sessions' 
-              ? 'border-primary text-primary bg-primary/5' 
-              : 'border-transparent text-gray-400 hover:text-white hover:bg-white/5'
-          }`}
-        >
-          <span className="sm:hidden">Sesiones ({sessions.length})</span>
-          <span className="hidden sm:inline">Sesiones Realizadas ({sessions.length})</span>
-        </button>
-        <button
-          onClick={() => setActiveTab('agenda')}
-          className={`px-4 sm:px-6 py-3 text-xs sm:text-sm font-bold border-b-2 transition-all whitespace-nowrap ${
-            activeTab === 'agenda' 
-              ? 'border-primary text-primary bg-primary/5' 
-              : 'border-transparent text-gray-400 hover:text-white hover:bg-white/5'
-          }`}
-        >
-          <span className="sm:hidden">Agenda ({assignments.filter(a => !a.completed).length})</span>
-          <span className="hidden sm:inline">Planificación y Agenda ({assignments.filter(a => !a.completed).length} pendientes)</span>
-        </button>
+      {/* Controles de Búsqueda y Filtrado */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-zinc-950 border border-white/5 p-4 rounded-lg">
+        {/* Barra de Búsqueda */}
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
+          <Input
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Buscar entrenamiento por nombre..."
+            className="pl-9 bg-black/40 border-white/10 h-10 w-full focus-visible:ring-primary focus-visible:border-primary text-sm rounded-md"
+          />
+          {searchTerm && (
+            <button
+              onClick={() => setSearchTerm('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white text-xs mr-2"
+            >
+              Limpiar
+            </button>
+          )}
+        </div>
+
+        {/* Chips de Estado */}
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+          <button
+            onClick={() => setStatusFilter('all')}
+            className={`px-4 py-2 text-xs font-bold border rounded-md transition-all whitespace-nowrap cursor-pointer ${
+              statusFilter === 'all'
+                ? 'bg-primary text-black border-primary'
+                : 'bg-zinc-900 border-white/5 text-gray-400 hover:text-white hover:border-white/10'
+            }`}
+          >
+            Todos ({combinedRecords.length})
+          </button>
+          <button
+            onClick={() => setStatusFilter('completed')}
+            className={`px-4 py-2 text-xs font-bold border rounded-md transition-all whitespace-nowrap cursor-pointer ${
+              statusFilter === 'completed'
+                ? 'bg-primary text-black border-primary'
+                : 'bg-zinc-900 border-white/5 text-gray-400 hover:text-white hover:border-white/10'
+            }`}
+          >
+            Realizados ({sessions.length})
+          </button>
+          <button
+            onClick={() => setStatusFilter('pending')}
+            className={`px-4 py-2 text-xs font-bold border rounded-md transition-all whitespace-nowrap cursor-pointer ${
+              statusFilter === 'pending'
+                ? 'bg-primary text-black border-primary'
+                : 'bg-zinc-900 border-white/5 text-gray-400 hover:text-white hover:border-white/10'
+            }`}
+          >
+            Pendientes ({assignments.filter(a => !a.completed).length})
+          </button>
+        </div>
       </div>
 
       {/* Contenido Principal */}
@@ -682,134 +872,146 @@ export const WorkoutHistory = () => {
         <div className="flex justify-center items-center py-20">
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
         </div>
-      ) : activeTab === 'sessions' ? (
-        /* Pestaña: Sesiones Completadas */
+      ) : (
         <div className="space-y-4">
-          {sessions.length === 0 ? (
+          {filteredRecords.length === 0 ? (
             <Card className="bg-zinc-950 border-white/5 py-12 text-center">
               <CardContent className="flex flex-col items-center justify-center gap-3">
                 <Info className="h-10 w-10 text-gray-600" />
-                <h3 className="text-lg font-bold text-white">No tienes entrenamientos registrados</h3>
+                <h3 className="text-lg font-bold text-white">No se encontraron entrenamientos</h3>
                 <p className="text-sm text-gray-400 max-w-md mx-auto">
-                  Aquí aparecerán todas tus sesiones completadas. Puedes iniciar una rutina en vivo desde el Dashboard o registrar un entrenamiento pasado manualmente.
+                  No hay entrenamientos que coincidan con la búsqueda o el filtro seleccionado.
                 </p>
-                <Button onClick={handleOpenManual} className="mt-4 bg-primary/10 border border-primary/20 text-primary hover:bg-primary hover:text-black font-bold">
-                  Registrar mi primer sesión
-                </Button>
+                {statusFilter !== 'pending' && (
+                  <Button onClick={handleOpenManual} className="mt-4 bg-primary/10 border border-primary/20 text-primary hover:bg-primary hover:text-black font-bold">
+                    Registrar un entrenamiento manual
+                  </Button>
+                )}
               </CardContent>
             </Card>
           ) : (
-            sessions.map(session => (
-              <Card key={session.id} className="bg-zinc-950 border-white/5 hover:border-white/10 transition-colors overflow-hidden group">
-                <div className="flex flex-col md:flex-row md:items-center justify-between p-4 sm:p-6 gap-4 md:gap-6">
-                  <div className="space-y-2 flex-1 min-w-0">
-                    <div className="flex items-center gap-2.5">
-                      <h3 className="font-bold text-lg text-white truncate">{session.name}</h3>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-y-1.5 gap-x-4 text-xs text-gray-400">
-                      <span className="flex items-center gap-1.5 capitalize">
-                        <CalendarIcon className="h-3.5 w-3.5 text-primary" />
-                        {formatDateString(session.start_time)}
-                      </span>
-                      <span className="flex items-center gap-1.5">
-                        <Clock className="h-3.5 w-3.5 text-primary" />
-                        {formatTimeString(session.start_time)} - {formatTimeString(session.end_time)}
-                      </span>
-                      <span className="px-2 py-0.5 rounded-full bg-zinc-900 border border-white/5 font-semibold text-[10px] text-gray-400">
-                        Duración: {getDurationText(session.start_time, session.end_time)}
-                      </span>
-                    </div>
-                    {session.notes && (
-                      <p className="text-xs text-gray-500 mt-2 p-2.5 bg-black/40 rounded-lg border border-white/5 italic">
-                        "{session.notes}"
-                      </p>
-                    )}
-                  </div>
-                  
-                  {/* Botones de Acción */}
-                  <div className="flex items-center gap-2 self-end md:self-center shrink-0">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-9 w-9 text-gray-400 hover:text-primary hover:bg-primary/10 rounded-full transition-all"
-                      onClick={() => handleOpenEdit(session)}
-                      title="Editar Sesión"
-                    >
-                      <Edit className="h-4.5 w-4.5" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-9 w-9 text-gray-400 hover:text-red-500 hover:bg-red-500/10 rounded-full transition-all"
-                      onClick={() => handleDeleteSession(session.id)}
-                      title="Eliminar Sesión"
-                    >
-                      <Trash2 className="h-4.5 w-4.5" />
-                    </Button>
-                  </div>
-                </div>
-              </Card>
-            ))
-          )}
-        </div>
-      ) : (
-        /* Pestaña: Agenda y Asignaciones */
-        <div className="space-y-4">
-          {assignments.length === 0 ? (
-            <Card className="bg-zinc-950 border-white/5 py-12 text-center">
-              <CardContent className="flex flex-col items-center justify-center gap-3">
-                <CalendarDays className="h-10 w-10 text-gray-600" />
-                <h3 className="text-lg font-bold text-white">No tienes entrenamientos agendados</h3>
-                <p className="text-sm text-gray-400 max-w-md mx-auto">
-                  Aquí verás las rutinas que te asigne tu entrenador en el calendario. Actualmente no tienes ninguna programación.
-                </p>
-              </CardContent>
-            </Card>
-          ) : (
-            assignments.map(assign => {
-              const isPast = new Date(assign.scheduled_date + 'T23:59:59') < new Date();
-              return (
-                <Card key={assign.id} className={`bg-zinc-950 border-white/5 overflow-hidden transition-colors ${
-                  assign.completed ? 'opacity-65' : ''
-                }`}>
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between p-5 gap-4">
-                    <div className="space-y-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h4 className="font-bold text-white text-base">{assign.routines.name}</h4>
-                        {assign.completed ? (
+            paginatedRecords.map(record => {
+              if (record.type === 'session') {
+                const session = record.data as Session;
+                return (
+                  <Card key={`session-${session.id}`} className="bg-zinc-950 border-white/5 hover:border-white/10 transition-colors overflow-hidden group">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between p-4 sm:p-6 gap-4 md:gap-6">
+                      <div className="space-y-2 flex-1 min-w-0">
+                        <div className="flex items-center gap-2.5 flex-wrap">
+                          <h3 className="font-bold text-lg text-white truncate">{session.name}</h3>
                           <span className="text-[9px] bg-green-500/15 border border-green-500/30 text-green-400 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">
-                            Completada
+                            Realizado
                           </span>
-                        ) : (
+                        </div>
+                        <div className="flex flex-wrap items-center gap-y-1.5 gap-x-4 text-xs text-gray-400">
+                          <span className="flex items-center gap-1.5 capitalize">
+                            <CalendarIcon className="h-3.5 w-3.5 text-primary" />
+                            {formatDateString(session.start_time)}
+                          </span>
+                          <span className="flex items-center gap-1.5">
+                            <Clock className="h-3.5 w-3.5 text-primary" />
+                            {formatTimeString(session.start_time)} - {formatTimeString(session.end_time)}
+                          </span>
+                          <span className="px-2 py-0.5 rounded-full bg-zinc-900 border border-white/5 font-semibold text-[10px] text-gray-400">
+                            Duración: {getDurationText(session.start_time, session.end_time)}
+                          </span>
+                        </div>
+                        {session.notes && (
+                          <p className="text-xs text-gray-500 mt-2 p-2.5 bg-black/40 rounded-lg border border-white/5 italic">
+                            "{session.notes}"
+                          </p>
+                        )}
+                      </div>
+                      
+                      {/* Botones de Acción */}
+                      <div className="flex items-center gap-2 self-end md:self-center shrink-0">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-9 w-9 text-gray-400 hover:text-primary hover:bg-primary/10 rounded-full transition-all"
+                          onClick={() => handleOpenEdit(session)}
+                          title="Editar Sesión"
+                        >
+                          <Edit className="h-4.5 w-4.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-9 w-9 text-gray-400 hover:text-red-500 hover:bg-red-500/10 rounded-full transition-all"
+                          onClick={() => handleDeleteSession(session.id)}
+                          title="Eliminar Sesión"
+                        >
+                          <Trash2 className="h-4.5 w-4.5" />
+                        </Button>
+                      </div>
+                    </div>
+                  </Card>
+                );
+              } else {
+                const assign = record.data as Assignment;
+                const isPast = new Date(assign.scheduled_date + 'T23:59:59') < new Date();
+                return (
+                  <Card key={`assign-${assign.id}`} className="bg-zinc-950 border-white/5 overflow-hidden transition-colors">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between p-5 gap-4">
+                      <div className="space-y-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h4 className="font-bold text-white text-base">{assign.routines.name}</h4>
                           <span className={`text-[9px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider border ${
                             isPast 
                               ? 'bg-red-500/10 border-red-500/20 text-red-400' 
                               : 'bg-primary/10 border-primary/20 text-primary'
                           }`}>
-                            {isPast ? 'Pendiente Pasada' : 'Pendiente'}
+                            {isPast ? 'Agenda Vencida' : 'Agenda Pendiente'}
                           </span>
-                        )}
+                        </div>
+                        <p className="text-xs text-gray-400 flex items-center gap-1.5">
+                          <CalendarIcon className="h-3.5 w-3.5 text-gray-500" />
+                          Programada: {format(new Date(assign.scheduled_date + 'T12:00:00'), "EEEE d 'de' MMMM, yyyy", { locale: es })}
+                        </p>
                       </div>
-                      <p className="text-xs text-gray-400 flex items-center gap-1.5">
-                        <CalendarIcon className="h-3.5 w-3.5 text-gray-500" />
-                        Programada: {format(new Date(assign.scheduled_date + 'T12:00:00'), "EEEE d 'de' MMMM, yyyy", { locale: es })}
-                      </p>
-                    </div>
 
-                    <div className="shrink-0 flex items-center gap-2 self-end sm:self-center">
-                      {!assign.completed && (
+                      <div className="shrink-0 flex items-center gap-2 self-end sm:self-center">
                         <Button 
                           onClick={() => handleOpenCompleteAssignment(assign)}
                           className="bg-primary/10 border border-primary/20 text-primary hover:bg-primary hover:text-black font-bold h-9 text-xs"
                         >
                           <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" /> Marcar Realizada
                         </Button>
-                      )}
+                      </div>
                     </div>
-                  </div>
-                </Card>
-              );
+                  </Card>
+                );
+              }
             })
+          )}
+
+          {/* Paginación */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between border-t border-white/5 pt-4 mt-2">
+              <div className="text-xs text-gray-400">
+                Mostrando página <span className="font-bold text-white">{currentPage}</span> de <span className="font-bold text-white">{totalPages}</span> ({filteredRecords.length} resultados)
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                  disabled={currentPage === 1}
+                  className="bg-zinc-900 border-white/5 text-gray-400 hover:text-white h-9"
+                >
+                  <ChevronLeft className="h-4 w-4 mr-1" /> Anterior
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                  disabled={currentPage === totalPages}
+                  className="bg-zinc-900 border-white/5 text-gray-400 hover:text-white h-9"
+                >
+                  Siguiente <ChevronRight className="h-4 w-4 ml-1" />
+                </Button>
+              </div>
+            </div>
           )}
         </div>
       )}
@@ -897,92 +1099,144 @@ export const WorkoutHistory = () => {
 
                   <div className="space-y-2.5 pr-1 max-h-60 overflow-y-auto custom-scrollbar">
                     {formExercises.map((ex, exIdx) => (
-                      <div key={exIdx} className="bg-black/30 border border-white/5 rounded-lg p-2.5 sm:p-3 space-y-2">
-                        <div className="flex justify-between items-center">
-                          <span className="text-xs font-bold text-white truncate">{ex.name}</span>
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveFormExercise(exIdx)}
-                            className="text-gray-500 hover:text-red-400 p-1"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
+                      <div key={exIdx} className="border border-white/5 bg-zinc-900/30 rounded-xl overflow-hidden mb-3">
+                        {/* Cabecera del Ejercicio */}
+                        <div className="flex flex-row items-center justify-between bg-[#1a2408]/90 backdrop-blur-md py-2 px-3 border-b border-primary/20">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <div className="h-6 w-6 text-[10px] rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold shrink-0">
+                              {exIdx + 1}
+                            </div>
+                            <span className="text-xs font-bold text-white truncate max-w-[150px] sm:max-w-xs">{ex.name}</span>
+                          </div>
+                          <div className="flex items-center gap-1 shrink-0 ml-2">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => fetchExerciseHelpData(ex.exerciseId)}
+                              disabled={loadingHelpId !== null}
+                              className="h-7 w-7 rounded-full text-gray-400 hover:text-white hover:bg-white/5 flex items-center justify-center shrink-0"
+                              title="Ayuda Visual e Información"
+                            >
+                              {loadingHelpId === ex.exerciseId ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Info className="h-4 w-4" />
+                              )}
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => {
+                                setReplacingExerciseIndex(exIdx);
+                                setShowAddExerciseSelector(true);
+                              }}
+                              className="h-7 w-7 rounded-full text-primary hover:text-primary hover:bg-primary/10 flex items-center justify-center shrink-0"
+                              title="Reemplazar Ejercicio"
+                            >
+                              <RefreshCw className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleRemoveFormExercise(exIdx)}
+                              className="h-7 w-7 rounded-full text-gray-500 hover:text-red-400 hover:bg-red-500/10 flex items-center justify-center"
+                              title="Quitar Ejercicio"
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </div>
 
-                        {/* Series */}
-                        <div className="space-y-1.5">
+                        {/* Cuerpo (Series) */}
+                        <div className="p-3 space-y-2">
                           {ex.sets.length > 0 && (
-                            <div className="flex items-center gap-1.5 text-[9px] text-gray-500 font-bold px-1 mb-1 select-none">
-                              <span className="w-9 shrink-0">SERIE</span>
-                              <div className="flex-1 max-w-[70px] flex items-center justify-center gap-0.5">
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    const updated = [...formExercises];
-                                    updated[exIdx].weightUnit = 'kg';
-                                    setFormExercises(updated);
-                                  }}
-                                  className={`px-1 py-0.5 text-[8px] font-extrabold rounded ${
-                                    (ex.weightUnit || 'kg') === 'kg'
-                                      ? 'bg-primary text-black font-black'
-                                      : 'bg-white/5 text-gray-500 hover:text-white'
-                                  }`}
-                                >
-                                  KG
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    const updated = [...formExercises];
-                                    updated[exIdx].weightUnit = 'lb';
-                                    setFormExercises(updated);
-                                  }}
-                                  className={`px-1 py-0.5 text-[8px] font-extrabold rounded ${
-                                    ex.weightUnit === 'lb'
-                                      ? 'bg-primary text-black font-black'
-                                      : 'bg-white/5 text-gray-500 hover:text-white'
-                                  }`}
-                                >
-                                  LB
-                                </button>
+                            <div className="grid grid-cols-12 gap-2 text-[10px] font-bold text-gray-500 uppercase items-center text-center px-1 select-none">
+                              <span className="col-span-2 text-left">Set</span>
+                              <div className="col-span-4 flex items-center justify-center gap-1.5">
+                                <span>Peso</span>
+                                <div className="flex border border-white/10 rounded overflow-hidden shrink-0">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const updated = [...formExercises];
+                                      updated[exIdx].weightUnit = 'kg';
+                                      setFormExercises(updated);
+                                    }}
+                                    className={`px-1.5 py-0.5 text-[8px] font-extrabold transition-colors ${
+                                      (ex.weightUnit || 'kg') === 'kg'
+                                        ? 'bg-primary text-black'
+                                        : 'bg-black/40 text-gray-400 hover:text-white'
+                                    }`}
+                                  >
+                                    KG
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const updated = [...formExercises];
+                                      updated[exIdx].weightUnit = 'lb';
+                                      setFormExercises(updated);
+                                    }}
+                                    className={`px-1.5 py-0.5 text-[8px] font-extrabold transition-colors ${
+                                      ex.weightUnit === 'lb'
+                                        ? 'bg-primary text-black'
+                                        : 'bg-black/40 text-gray-400 hover:text-white'
+                                    }`}
+                                  >
+                                    LB
+                                  </button>
+                                </div>
                               </div>
-                              <span className="flex-1 max-w-[70px] text-center">REPS</span>
-                              <span className="w-8 shrink-0"></span>
+                              <span className="col-span-4">Reps</span>
+                              <span className="col-span-2">Quitar</span>
                             </div>
                           )}
+
                           {ex.sets.map((set, setIdx) => (
-                            <div key={setIdx} className="flex items-center gap-1.5 text-[11px] sm:text-xs">
-                              <span className="text-gray-500 font-semibold w-9 shrink-0">Set {setIdx + 1}</span>
-                              <Input
-                                type="number"
-                                placeholder={ex.weightUnit === 'lb' ? "LB" : "KG"}
-                                value={set.weight}
-                                onChange={(e) => handleUpdateFormSet(exIdx, setIdx, 'weight', e.target.value)}
-                                className="h-8 bg-black/40 text-center flex-1 max-w-[70px] text-xs border-white/10 px-1"
-                              />
-                              <Input
-                                type="number"
-                                placeholder="Reps"
-                                value={set.reps}
-                                onChange={(e) => handleUpdateFormSet(exIdx, setIdx, 'reps', e.target.value)}
-                                className="h-8 bg-black/40 text-center flex-1 max-w-[70px] text-xs border-white/10 px-1"
-                              />
-                              <button
-                                type="button"
-                                onClick={() => handleRemoveFormSet(exIdx, setIdx)}
-                                className="text-gray-500 hover:text-red-400 ml-auto h-8 w-8 flex items-center justify-center rounded-lg hover:bg-white/5 transition-colors"
-                              >
-                                <X className="h-3.5 w-3.5" />
-                              </button>
+                            <div key={setIdx} className="grid grid-cols-12 gap-2 items-center text-center">
+                              <span className="col-span-2 text-left text-gray-500 font-bold text-xs">Set {setIdx + 1}</span>
+                              <div className="col-span-4">
+                                <Input
+                                  type="number"
+                                  placeholder={ex.weightUnit === 'lb' ? "0 lb" : "0 kg"}
+                                  value={set.weight}
+                                  onChange={(e) => handleUpdateFormSet(exIdx, setIdx, 'weight', e.target.value)}
+                                  className="h-9 bg-black/40 text-center w-full text-xs border-white/10"
+                                />
+                              </div>
+                              <div className="col-span-4">
+                                <Input
+                                  type="number"
+                                  placeholder="0"
+                                  value={set.reps}
+                                  onChange={(e) => handleUpdateFormSet(exIdx, setIdx, 'reps', e.target.value)}
+                                  className="h-9 bg-black/40 text-center w-full text-xs border-white/10"
+                                />
+                              </div>
+                              <div className="col-span-2 flex justify-center">
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveFormSet(exIdx, setIdx)}
+                                  className="h-8 w-8 text-gray-500 hover:text-red-500 hover:bg-red-500/10 rounded-full flex items-center justify-center border border-white/5 transition-colors"
+                                  title="Quitar Serie"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
                             </div>
                           ))}
-                          <button
+
+                          <Button
                             type="button"
+                            variant="ghost"
+                            className="w-full mt-2 border border-dashed border-white/10 text-[11px] h-8 hover:bg-white/5 hover:text-white"
                             onClick={() => handleAddFormSet(exIdx)}
-                            className="text-[10px] text-primary hover:underline font-bold px-1 py-0.5 mt-1 block"
                           >
                             + Serie
-                          </button>
+                          </Button>
                         </div>
                       </div>
                     ))}
@@ -1107,92 +1361,144 @@ export const WorkoutHistory = () => {
 
                   <div className="space-y-2.5 pr-1 max-h-60 overflow-y-auto custom-scrollbar">
                     {formExercises.map((ex, exIdx) => (
-                      <div key={exIdx} className="bg-black/30 border border-white/5 rounded-lg p-2.5 sm:p-3 space-y-2">
-                        <div className="flex justify-between items-center">
-                          <span className="text-xs font-bold text-white truncate">{ex.name}</span>
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveFormExercise(exIdx)}
-                            className="text-gray-500 hover:text-red-400 p-1"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
+                      <div key={exIdx} className="border border-white/5 bg-zinc-900/30 rounded-xl overflow-hidden mb-3">
+                        {/* Cabecera del Ejercicio */}
+                        <div className="flex flex-row items-center justify-between bg-[#1a2408]/90 backdrop-blur-md py-2 px-3 border-b border-primary/20">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <div className="h-6 w-6 text-[10px] rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold shrink-0">
+                              {exIdx + 1}
+                            </div>
+                            <span className="text-xs font-bold text-white truncate max-w-[150px] sm:max-w-xs">{ex.name}</span>
+                          </div>
+                          <div className="flex items-center gap-1 shrink-0 ml-2">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => fetchExerciseHelpData(ex.exerciseId)}
+                              disabled={loadingHelpId !== null}
+                              className="h-7 w-7 rounded-full text-gray-400 hover:text-white hover:bg-white/5 flex items-center justify-center shrink-0"
+                              title="Ayuda Visual e Información"
+                            >
+                              {loadingHelpId === ex.exerciseId ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Info className="h-4 w-4" />
+                              )}
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => {
+                                setReplacingExerciseIndex(exIdx);
+                                setShowAddExerciseSelector(true);
+                              }}
+                              className="h-7 w-7 rounded-full text-primary hover:text-primary hover:bg-primary/10 flex items-center justify-center shrink-0"
+                              title="Reemplazar Ejercicio"
+                            >
+                              <RefreshCw className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleRemoveFormExercise(exIdx)}
+                              className="h-7 w-7 rounded-full text-gray-500 hover:text-red-400 hover:bg-red-500/10 flex items-center justify-center"
+                              title="Quitar Ejercicio"
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </div>
 
-                        {/* Series */}
-                        <div className="space-y-1.5">
+                        {/* Cuerpo (Series) */}
+                        <div className="p-3 space-y-2">
                           {ex.sets.length > 0 && (
-                            <div className="flex items-center gap-1.5 text-[9px] text-gray-500 font-bold px-1 mb-1 select-none">
-                              <span className="w-9 shrink-0">SERIE</span>
-                              <div className="flex-1 max-w-[70px] flex items-center justify-center gap-0.5">
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    const updated = [...formExercises];
-                                    updated[exIdx].weightUnit = 'kg';
-                                    setFormExercises(updated);
-                                  }}
-                                  className={`px-1 py-0.5 text-[8px] font-extrabold rounded ${
-                                    (ex.weightUnit || 'kg') === 'kg'
-                                      ? 'bg-primary text-black font-black'
-                                      : 'bg-white/5 text-gray-500 hover:text-white'
-                                  }`}
-                                >
-                                  KG
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    const updated = [...formExercises];
-                                    updated[exIdx].weightUnit = 'lb';
-                                    setFormExercises(updated);
-                                  }}
-                                  className={`px-1 py-0.5 text-[8px] font-extrabold rounded ${
-                                    ex.weightUnit === 'lb'
-                                      ? 'bg-primary text-black font-black'
-                                      : 'bg-white/5 text-gray-500 hover:text-white'
-                                  }`}
-                                >
-                                  LB
-                                </button>
+                            <div className="grid grid-cols-12 gap-2 text-[10px] font-bold text-gray-500 uppercase items-center text-center px-1 select-none">
+                              <span className="col-span-2 text-left">Set</span>
+                              <div className="col-span-4 flex items-center justify-center gap-1.5">
+                                <span>Peso</span>
+                                <div className="flex border border-white/10 rounded overflow-hidden shrink-0">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const updated = [...formExercises];
+                                      updated[exIdx].weightUnit = 'kg';
+                                      setFormExercises(updated);
+                                    }}
+                                    className={`px-1.5 py-0.5 text-[8px] font-extrabold transition-colors ${
+                                      (ex.weightUnit || 'kg') === 'kg'
+                                        ? 'bg-primary text-black'
+                                        : 'bg-black/40 text-gray-400 hover:text-white'
+                                    }`}
+                                  >
+                                    KG
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const updated = [...formExercises];
+                                      updated[exIdx].weightUnit = 'lb';
+                                      setFormExercises(updated);
+                                    }}
+                                    className={`px-1.5 py-0.5 text-[8px] font-extrabold transition-colors ${
+                                      ex.weightUnit === 'lb'
+                                        ? 'bg-primary text-black'
+                                        : 'bg-black/40 text-gray-400 hover:text-white'
+                                    }`}
+                                  >
+                                    LB
+                                  </button>
+                                </div>
                               </div>
-                              <span className="flex-1 max-w-[70px] text-center">REPS</span>
-                              <span className="w-8 shrink-0"></span>
+                              <span className="col-span-4">Reps</span>
+                              <span className="col-span-2">Quitar</span>
                             </div>
                           )}
+
                           {ex.sets.map((set, setIdx) => (
-                            <div key={setIdx} className="flex items-center gap-1.5 text-[11px] sm:text-xs">
-                              <span className="text-gray-500 font-semibold w-9 shrink-0">Set {setIdx + 1}</span>
-                              <Input
-                                type="number"
-                                placeholder={ex.weightUnit === 'lb' ? "LB" : "KG"}
-                                value={set.weight}
-                                onChange={(e) => handleUpdateFormSet(exIdx, setIdx, 'weight', e.target.value)}
-                                className="h-8 bg-black/40 text-center flex-1 max-w-[70px] text-xs border-white/10 px-1"
-                              />
-                              <Input
-                                type="number"
-                                placeholder="Reps"
-                                value={set.reps}
-                                onChange={(e) => handleUpdateFormSet(exIdx, setIdx, 'reps', e.target.value)}
-                                className="h-8 bg-black/40 text-center flex-1 max-w-[70px] text-xs border-white/10 px-1"
-                              />
-                              <button
-                                type="button"
-                                onClick={() => handleRemoveFormSet(exIdx, setIdx)}
-                                className="text-gray-500 hover:text-red-400 ml-auto h-8 w-8 flex items-center justify-center rounded-lg hover:bg-white/5 transition-colors"
-                              >
-                                <X className="h-3.5 w-3.5" />
-                              </button>
+                            <div key={setIdx} className="grid grid-cols-12 gap-2 items-center text-center">
+                              <span className="col-span-2 text-left text-gray-500 font-bold text-xs">Set {setIdx + 1}</span>
+                              <div className="col-span-4">
+                                <Input
+                                  type="number"
+                                  placeholder={ex.weightUnit === 'lb' ? "0 lb" : "0 kg"}
+                                  value={set.weight}
+                                  onChange={(e) => handleUpdateFormSet(exIdx, setIdx, 'weight', e.target.value)}
+                                  className="h-9 bg-black/40 text-center w-full text-xs border-white/10"
+                                />
+                              </div>
+                              <div className="col-span-4">
+                                <Input
+                                  type="number"
+                                  placeholder="0"
+                                  value={set.reps}
+                                  onChange={(e) => handleUpdateFormSet(exIdx, setIdx, 'reps', e.target.value)}
+                                  className="h-9 bg-black/40 text-center w-full text-xs border-white/10"
+                                />
+                              </div>
+                              <div className="col-span-2 flex justify-center">
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveFormSet(exIdx, setIdx)}
+                                  className="h-8 w-8 text-gray-500 hover:text-red-500 hover:bg-red-500/10 rounded-full flex items-center justify-center border border-white/5 transition-colors"
+                                  title="Quitar Serie"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
                             </div>
                           ))}
-                          <button
+
+                          <Button
                             type="button"
+                            variant="ghost"
+                            className="w-full mt-2 border border-dashed border-white/10 text-[11px] h-8 hover:bg-white/5 hover:text-white"
                             onClick={() => handleAddFormSet(exIdx)}
-                            className="text-[10px] text-primary hover:underline font-bold px-1 py-0.5 mt-1 block"
                           >
                             + Serie
-                          </button>
+                          </Button>
                         </div>
                       </div>
                     ))}
@@ -1297,92 +1603,144 @@ export const WorkoutHistory = () => {
 
                   <div className="space-y-2.5 pr-1 max-h-60 overflow-y-auto custom-scrollbar">
                     {formExercises.map((ex, exIdx) => (
-                      <div key={exIdx} className="bg-black/30 border border-white/5 rounded-lg p-2.5 sm:p-3 space-y-2">
-                        <div className="flex justify-between items-center">
-                          <span className="text-xs font-bold text-white truncate">{ex.name}</span>
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveFormExercise(exIdx)}
-                            className="text-gray-500 hover:text-red-400 p-1"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
+                      <div key={exIdx} className="border border-white/5 bg-zinc-900/30 rounded-xl overflow-hidden mb-3">
+                        {/* Cabecera del Ejercicio */}
+                        <div className="flex flex-row items-center justify-between bg-[#1a2408]/90 backdrop-blur-md py-2 px-3 border-b border-primary/20">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <div className="h-6 w-6 text-[10px] rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold shrink-0">
+                              {exIdx + 1}
+                            </div>
+                            <span className="text-xs font-bold text-white truncate max-w-[150px] sm:max-w-xs">{ex.name}</span>
+                          </div>
+                          <div className="flex items-center gap-1 shrink-0 ml-2">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => fetchExerciseHelpData(ex.exerciseId)}
+                              disabled={loadingHelpId !== null}
+                              className="h-7 w-7 rounded-full text-gray-400 hover:text-white hover:bg-white/5 flex items-center justify-center shrink-0"
+                              title="Ayuda Visual e Información"
+                            >
+                              {loadingHelpId === ex.exerciseId ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Info className="h-4 w-4" />
+                              )}
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => {
+                                setReplacingExerciseIndex(exIdx);
+                                setShowAddExerciseSelector(true);
+                              }}
+                              className="h-7 w-7 rounded-full text-primary hover:text-primary hover:bg-primary/10 flex items-center justify-center shrink-0"
+                              title="Reemplazar Ejercicio"
+                            >
+                              <RefreshCw className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleRemoveFormExercise(exIdx)}
+                              className="h-7 w-7 rounded-full text-gray-500 hover:text-red-400 hover:bg-red-500/10 flex items-center justify-center"
+                              title="Quitar Ejercicio"
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </div>
 
-                        {/* Series */}
-                        <div className="space-y-1.5">
+                        {/* Cuerpo (Series) */}
+                        <div className="p-3 space-y-2">
                           {ex.sets.length > 0 && (
-                            <div className="flex items-center gap-1.5 text-[9px] text-gray-500 font-bold px-1 mb-1 select-none">
-                              <span className="w-9 shrink-0">SERIE</span>
-                              <div className="flex-1 max-w-[70px] flex items-center justify-center gap-0.5">
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    const updated = [...formExercises];
-                                    updated[exIdx].weightUnit = 'kg';
-                                    setFormExercises(updated);
-                                  }}
-                                  className={`px-1 py-0.5 text-[8px] font-extrabold rounded ${
-                                    (ex.weightUnit || 'kg') === 'kg'
-                                      ? 'bg-primary text-black font-black'
-                                      : 'bg-white/5 text-gray-500 hover:text-white'
-                                  }`}
-                                >
-                                  KG
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    const updated = [...formExercises];
-                                    updated[exIdx].weightUnit = 'lb';
-                                    setFormExercises(updated);
-                                  }}
-                                  className={`px-1 py-0.5 text-[8px] font-extrabold rounded ${
-                                    ex.weightUnit === 'lb'
-                                      ? 'bg-primary text-black font-black'
-                                      : 'bg-white/5 text-gray-500 hover:text-white'
-                                  }`}
-                                >
-                                  LB
-                                </button>
+                            <div className="grid grid-cols-12 gap-2 text-[10px] font-bold text-gray-500 uppercase items-center text-center px-1 select-none">
+                              <span className="col-span-2 text-left">Set</span>
+                              <div className="col-span-4 flex items-center justify-center gap-1.5">
+                                <span>Peso</span>
+                                <div className="flex border border-white/10 rounded overflow-hidden shrink-0">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const updated = [...formExercises];
+                                      updated[exIdx].weightUnit = 'kg';
+                                      setFormExercises(updated);
+                                    }}
+                                    className={`px-1.5 py-0.5 text-[8px] font-extrabold transition-colors ${
+                                      (ex.weightUnit || 'kg') === 'kg'
+                                        ? 'bg-primary text-black'
+                                        : 'bg-black/40 text-gray-400 hover:text-white'
+                                    }`}
+                                  >
+                                    KG
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const updated = [...formExercises];
+                                      updated[exIdx].weightUnit = 'lb';
+                                      setFormExercises(updated);
+                                    }}
+                                    className={`px-1.5 py-0.5 text-[8px] font-extrabold transition-colors ${
+                                      ex.weightUnit === 'lb'
+                                        ? 'bg-primary text-black'
+                                        : 'bg-black/40 text-gray-400 hover:text-white'
+                                    }`}
+                                  >
+                                    LB
+                                  </button>
+                                </div>
                               </div>
-                              <span className="flex-1 max-w-[70px] text-center">REPS</span>
-                              <span className="w-8 shrink-0"></span>
+                              <span className="col-span-4">Reps</span>
+                              <span className="col-span-2">Quitar</span>
                             </div>
                           )}
+
                           {ex.sets.map((set, setIdx) => (
-                            <div key={setIdx} className="flex items-center gap-1.5 text-[11px] sm:text-xs">
-                              <span className="text-gray-500 font-semibold w-9 shrink-0">Set {setIdx + 1}</span>
-                              <Input
-                                type="number"
-                                placeholder={ex.weightUnit === 'lb' ? "LB" : "KG"}
-                                value={set.weight}
-                                onChange={(e) => handleUpdateFormSet(exIdx, setIdx, 'weight', e.target.value)}
-                                className="h-8 bg-black/40 text-center flex-1 max-w-[70px] text-xs border-white/10 px-1"
-                              />
-                              <Input
-                                type="number"
-                                placeholder="Reps"
-                                value={set.reps}
-                                onChange={(e) => handleUpdateFormSet(exIdx, setIdx, 'reps', e.target.value)}
-                                className="h-8 bg-black/40 text-center flex-1 max-w-[70px] text-xs border-white/10 px-1"
-                              />
-                              <button
-                                type="button"
-                                onClick={() => handleRemoveFormSet(exIdx, setIdx)}
-                                className="text-gray-500 hover:text-red-400 ml-auto h-8 w-8 flex items-center justify-center rounded-lg hover:bg-white/5 transition-colors"
-                              >
-                                <X className="h-3.5 w-3.5" />
-                              </button>
+                            <div key={setIdx} className="grid grid-cols-12 gap-2 items-center text-center">
+                              <span className="col-span-2 text-left text-gray-500 font-bold text-xs">Set {setIdx + 1}</span>
+                              <div className="col-span-4">
+                                <Input
+                                  type="number"
+                                  placeholder={ex.weightUnit === 'lb' ? "0 lb" : "0 kg"}
+                                  value={set.weight}
+                                  onChange={(e) => handleUpdateFormSet(exIdx, setIdx, 'weight', e.target.value)}
+                                  className="h-9 bg-black/40 text-center w-full text-xs border-white/10"
+                                />
+                              </div>
+                              <div className="col-span-4">
+                                <Input
+                                  type="number"
+                                  placeholder="0"
+                                  value={set.reps}
+                                  onChange={(e) => handleUpdateFormSet(exIdx, setIdx, 'reps', e.target.value)}
+                                  className="h-9 bg-black/40 text-center w-full text-xs border-white/10"
+                                />
+                              </div>
+                              <div className="col-span-2 flex justify-center">
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveFormSet(exIdx, setIdx)}
+                                  className="h-8 w-8 text-gray-500 hover:text-red-500 hover:bg-red-500/10 rounded-full flex items-center justify-center border border-white/5 transition-colors"
+                                  title="Quitar Serie"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
                             </div>
                           ))}
-                          <button
+
+                          <Button
                             type="button"
+                            variant="ghost"
+                            className="w-full mt-2 border border-dashed border-white/10 text-[11px] h-8 hover:bg-white/5 hover:text-white"
                             onClick={() => handleAddFormSet(exIdx)}
-                            className="text-[10px] text-primary hover:underline font-bold px-1 py-0.5 mt-1 block"
                           >
                             + Serie
-                          </button>
+                          </Button>
                         </div>
                       </div>
                     ))}
@@ -1443,6 +1801,169 @@ export const WorkoutHistory = () => {
                 }
                 {exercisesCatalog.filter(ex => ex.name.toLowerCase().includes(exerciseSearchTerm.toLowerCase())).length === 0 && (
                   <p className="text-xs text-gray-500 italic text-center py-4">No se encontraron resultados.</p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Help Modal */}
+      {showHelpModal && helpData && (
+        <div className="fixed inset-0 bg-black/90 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <Card className="w-full max-w-lg border-primary/30 bg-zinc-950 shadow-[0_0_50px_rgba(var(--color-primary-rgb),0.1)]">
+            <CardHeader className="flex flex-row items-center justify-between py-4 px-6 border-b border-white/5">
+              <div>
+                <CardTitle className="text-lg font-bold text-white">Ayuda Visual e Información</CardTitle>
+                <CardDescription className="text-xs text-gray-400 mt-0.5">Detalles del catálogo para {helpData.name}</CardDescription>
+              </div>
+              <Button 
+                variant="ghost" 
+                size="icon"
+                onClick={() => {
+                  setShowHelpModal(false);
+                  setHelpData(null);
+                }}
+                className="h-8 w-8 rounded-full text-gray-500 hover:text-white hover:bg-white/5"
+              >
+                <X className="h-5 w-5" />
+              </Button>
+            </CardHeader>
+            <CardContent className="p-6 space-y-4">
+              {/* Tabs list selector */}
+              <div className="flex border-b border-white/5">
+                {(['exercise', 'machine', 'muscle'] as const).map((tab) => {
+                  const label = tab === 'exercise' ? 'Ejercicio' : tab === 'machine' ? 'Máquina' : 'Músculo';
+                  const active = activeHelpTab === tab;
+                  return (
+                    <button
+                      key={tab}
+                      type="button"
+                      onClick={() => setActiveHelpTab(tab)}
+                      className={`flex-1 py-2 text-xs font-bold border-b-2 transition-all capitalize ${
+                        active 
+                          ? 'border-primary text-primary bg-primary/5' 
+                          : 'border-transparent text-gray-400 hover:text-white'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Tab Content */}
+              <div className="space-y-4">
+                {activeHelpTab === 'exercise' && (
+                  <div className="space-y-4">
+                    {/* Exercise image or placeholder */}
+                    {helpData.image_url ? (
+                      <div className="relative group overflow-hidden rounded-lg border border-white/10 h-48 bg-black/40">
+                        <img 
+                          src={helpData.image_url} 
+                          alt={helpData.name} 
+                          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" 
+                        />
+                      </div>
+                    ) : (
+                      <div className="rounded-lg border border-white/5 border-dashed h-48 bg-gradient-to-b from-zinc-950 to-zinc-900 flex flex-col items-center justify-center gap-3 text-gray-500 relative overflow-hidden group">
+                        <div className="absolute inset-0 bg-[linear-gradient(to_right,#8080800a_1px,transparent_1px),linear-gradient(to_bottom,#8080800a_1px,transparent_1px)] bg-[size:14px_24px] pointer-events-none" />
+                        <Dumbbell className="h-10 w-10 text-gray-600 transition-transform duration-300 group-hover:scale-110 group-hover:text-primary/55" />
+                        <div className="text-center z-10">
+                          <p className="text-xs font-bold text-gray-400">Sin Imagen de Referencia</p>
+                          <p className="text-[10px] text-gray-600 mt-1 max-w-[240px]">Puedes subir imágenes para este ejercicio desde la sección de administración del catálogo.</p>
+                        </div>
+                      </div>
+                    )}
+                    <div>
+                      <h4 className="font-bold text-white text-sm uppercase tracking-wider mb-1">{helpData.name}</h4>
+                      <p className="text-xs text-gray-400 leading-relaxed max-h-32 overflow-y-auto">
+                        {helpData.description || 'Sin descripción adicional para este ejercicio en el catálogo.'}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {activeHelpTab === 'machine' && (
+                  <div className="space-y-4">
+                    {helpData.machines ? (
+                      <>
+                        {helpData.machines.image_url ? (
+                          <div className="relative group overflow-hidden rounded-lg border border-white/10 h-48 bg-black/40">
+                            <img 
+                              src={helpData.machines.image_url} 
+                              alt={helpData.machines.name} 
+                              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" 
+                            />
+                          </div>
+                        ) : (
+                          <div className="rounded-lg border border-white/5 border-dashed h-48 bg-gradient-to-b from-zinc-950 to-zinc-900 flex flex-col items-center justify-center gap-3 text-gray-500 relative overflow-hidden group">
+                            <div className="absolute inset-0 bg-[linear-gradient(to_right,#8080800a_1px,transparent_1px),linear-gradient(to_bottom,#8080800a_1px,transparent_1px)] bg-[size:14px_24px] pointer-events-none" />
+                            <Cpu className="h-10 w-10 text-gray-600 transition-transform duration-300 group-hover:scale-110 group-hover:text-primary/55" />
+                            <div className="text-center z-10">
+                              <p className="text-xs font-bold text-gray-400">Sin Imagen de la Máquina</p>
+                              <p className="text-[10px] text-gray-600 mt-1 max-w-[240px]">Esta máquina no tiene una imagen asociada en el catálogo de equipamiento.</p>
+                            </div>
+                          </div>
+                        )}
+                        <div>
+                          <h4 className="font-bold text-white text-sm uppercase tracking-wider mb-1">Máquina: {helpData.machines.name}</h4>
+                          <p className="text-xs text-gray-400 leading-relaxed max-h-32 overflow-y-auto">
+                            {helpData.machines.description || 'Esta máquina no tiene una descripción detallada.'}
+                          </p>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="rounded-lg border border-white/5 bg-zinc-950/40 p-8 flex flex-col items-center justify-center gap-3 text-gray-500 min-h-[220px]">
+                        <Cpu className="h-8 w-8 text-gray-700" />
+                        <div className="text-center">
+                          <p className="text-xs font-bold text-gray-400">Peso Libre / Sin Máquina</p>
+                          <p className="text-[10px] text-gray-600 mt-1 max-w-[240px]">Este ejercicio no requiere una máquina o estación guiada del catálogo.</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {activeHelpTab === 'muscle' && (
+                  <div className="space-y-4">
+                    {helpData.muscle_groups ? (
+                      <>
+                        {helpData.muscle_groups.image_url ? (
+                          <div className="relative group overflow-hidden rounded-lg border border-white/10 h-48 bg-black/40">
+                            <img 
+                              src={helpData.muscle_groups.image_url} 
+                              alt={helpData.muscle_groups.name} 
+                              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" 
+                            />
+                          </div>
+                        ) : (
+                          <div className="rounded-lg border border-white/5 border-dashed h-48 bg-gradient-to-b from-zinc-950 to-zinc-900 flex flex-col items-center justify-center gap-3 text-gray-500 relative overflow-hidden group">
+                            <div className="absolute inset-0 bg-[linear-gradient(to_right,#8080800a_1px,transparent_1px),linear-gradient(to_bottom,#8080800a_1px,transparent_1px)] bg-[size:14px_24px] pointer-events-none" />
+                            <Activity className="h-10 w-10 text-gray-600 transition-transform duration-300 group-hover:scale-110 group-hover:text-primary/55" />
+                            <div className="text-center z-10">
+                              <p className="text-xs font-bold text-gray-400">Sin Imagen Anatómica</p>
+                              <p className="text-[10px] text-gray-600 mt-1 max-w-[240px]">No hay un mapa muscular asignado para este grupo muscular en el catálogo.</p>
+                            </div>
+                          </div>
+                        )}
+                        <div>
+                          <h4 className="font-bold text-white text-sm uppercase tracking-wider mb-1">Músculo Principal: {helpData.muscle_groups.name}</h4>
+                          <p className="text-xs text-gray-400 leading-relaxed max-h-32 overflow-y-auto">
+                            {helpData.muscle_groups.description || 'Este grupo muscular no tiene una descripción detallada en el catálogo.'}
+                          </p>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="rounded-lg border border-white/5 bg-zinc-950/40 p-8 flex flex-col items-center justify-center gap-3 text-gray-500 min-h-[220px]">
+                        <Activity className="h-8 w-8 text-gray-700" />
+                        <div className="text-center">
+                          <p className="text-xs font-bold text-gray-400">Sin Grupo Muscular Asignado</p>
+                          <p className="text-[10px] text-gray-600 mt-1 max-w-[240px]">Este ejercicio no tiene un grupo muscular principal especificado en el catálogo.</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
             </CardContent>

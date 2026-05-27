@@ -4,7 +4,7 @@ import { useAuth } from '@/lib/useAuth';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Plus, Trash2, Clock, Check, Save, Play, Square, Loader2, Calendar as CalendarIcon, X, RefreshCw, Info, Dumbbell, Activity, Cpu } from 'lucide-react';
+import { Plus, Trash2, Clock, Check, Save, Play, Square, Loader2, Calendar as CalendarIcon, X, RefreshCw, Info, Dumbbell, Activity, Cpu, ArrowLeft, Edit } from 'lucide-react';
 import { DatePicker } from '@/components/ui/DatePicker';
 
 interface Set {
@@ -79,8 +79,11 @@ export const WorkoutSession = () => {
   const [creationDate, setCreationDate] = useState<string>(new Date().toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' }));
   const [isNewRoutine, setIsNewRoutine] = useState(true);
   const [isEditMode, setIsEditMode] = useState(false);
+  const [isTemplateEditorMode, setIsTemplateEditorMode] = useState(false);
+  const [myRoutines, setMyRoutines] = useState<any[]>([]);
   const [currentRoutineId, setCurrentRoutineId] = useState<string | null>(null);
   const [assignmentId, setAssignmentId] = useState<string | null>(null);
+  const [isEditingActiveSession, setIsEditingActiveSession] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const headerRef = useRef<HTMLDivElement>(null);
   const [headerHeight, setHeaderHeight] = useState(0);
@@ -172,7 +175,7 @@ export const WorkoutSession = () => {
     }
   }, []);
 
-  // Fetch routine if ID is in URL
+  // Fetch routine if ID is in URL, or load my routines for the welcome screen
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const routineId = params.get('routineId');
@@ -180,6 +183,7 @@ export const WorkoutSession = () => {
     const aId = params.get('assignmentId');
 
     if (aId) setAssignmentId(aId);
+    if (edit) setIsTemplateEditorMode(true);
 
     if (routineId) {
       setCurrentRoutineId(routineId);
@@ -284,6 +288,28 @@ export const WorkoutSession = () => {
         }
       };
       loadRoutine();
+    } else if (!edit) {
+      // Si entramos a entrenar sin rutina específica, cargar las rutinas del alumno para la pantalla de bienvenida
+      const fetchMyRoutines = async () => {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) return;
+        
+        const { data, error } = await supabase
+          .from('routines')
+          .select(`
+            id,
+            name,
+            description,
+            routine_exercises (id)
+          `)
+          .or(`student_id.eq.${session.user.id},student_id.is.null`)
+          .order('name');
+          
+        if (!error && data) {
+          setMyRoutines(data);
+        }
+      };
+      fetchMyRoutines();
     }
   }, []);
 
@@ -321,6 +347,59 @@ export const WorkoutSession = () => {
     // El cronómetro y el entrenamiento en vivo se calculan desde el instante actual de la computadora
     setStartTime(new Date());
     setStatus('active');
+  };
+
+  const startFreeWorkout = () => {
+    setRoutineName('Entrenamiento Libre');
+    setSessionExercises([]);
+    setStartTime(new Date());
+    setStatus('active');
+  };
+
+  const startQuickRoutine = async (routineId: string) => {
+    const routine = myRoutines.find(r => r.id === routineId);
+    if (!routine) return;
+    
+    setRoutineName(routine.name);
+    setCurrentRoutineId(routineId);
+    
+    try {
+      const { data, error } = await supabase
+        .from('routine_exercises')
+        .select('*, exercises(name)')
+        .eq('routine_id', routineId)
+        .order('order_index');
+
+      if (error) throw error;
+      
+      if (data) {
+        const mapped = data.map((rx: any) => {
+          const sets = rx.sets_data && Array.isArray(rx.sets_data) && rx.sets_data.length > 0
+            ? rx.sets_data.map((s: any) => ({
+                weight: s.weight?.toString() || '',
+                reps: s.reps?.toString() || '',
+                completed: false
+              }))
+            : Array.from({ length: rx.sets || 4 }).map(() => ({
+                weight: rx.weight?.toString() || '',
+                reps: rx.reps?.toString() || '',
+                completed: false
+              }));
+
+          return {
+            id: rx.exercise_id,
+            name: rx.exercises.name,
+            weightUnit: rx.weight_unit || 'kg',
+            sets
+          };
+        });
+        
+        setSessionExercises(mapped);
+      }
+    } catch (err) {
+      console.error('Error al cargar rutina rápida:', err);
+      alert('Error al cargar la rutina.');
+    }
   };
 
   const resumeWorkout = () => {
@@ -450,7 +529,9 @@ export const WorkoutSession = () => {
           user_id: session.user.id,
           name: routineName,
           start_time: startTime?.toISOString(),
-          end_time: endWorkoutTime.toISOString()
+          end_time: endWorkoutTime.toISOString(),
+          routine_id: currentRoutineId || null,
+          assignment_id: assignmentId || null
         })
         .select()
         .single();
@@ -652,6 +733,79 @@ export const WorkoutSession = () => {
     ex.sets.every(set => set.completed)
   ).length;
 
+  const isTrainingWithoutParams = !currentRoutineId && !isTemplateEditorMode && status === 'planning';
+
+  if (isTrainingWithoutParams) {
+    return (
+      <div className="space-y-6 pb-20 pt-6 max-w-2xl mx-auto">
+        <header className="mb-8 text-center sm:text-left flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-white/5 pb-6">
+          <div>
+            <div className="flex items-center gap-2 text-sm text-gray-500 font-bold uppercase tracking-wider mb-1 justify-center sm:justify-start">
+              <a href="/dashboard" className="hover:text-primary transition-colors flex items-center gap-1">
+                <ArrowLeft className="h-3.5 w-3.5" /> Volver al Dashboard
+              </a>
+            </div>
+            <h1 className="text-3xl font-extrabold font-heading text-white">Comenzar Entrenamiento</h1>
+            <p className="text-sm text-gray-400 mt-1">Elige cómo quieres registrar tu sesión de hoy.</p>
+          </div>
+        </header>
+
+        <div className="grid grid-cols-1 gap-6">
+          {/* Opción A: Entrenamiento Libre */}
+          <Card className="bg-zinc-950 border-white/5 hover:border-primary/20 transition-all p-6 cursor-pointer group flex flex-col sm:flex-row items-center justify-between gap-6" onClick={startFreeWorkout}>
+            <div className="flex items-center gap-4 text-center sm:text-left flex-col sm:flex-row w-full">
+              <div className="h-14 w-14 rounded-full bg-primary/10 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-black transition-all shrink-0">
+                <Plus className="h-6 w-6" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-xl font-bold text-white group-hover:text-primary transition-colors">Entrenamiento Libre</h3>
+                <p className="text-xs text-gray-400">
+                  Inicia una sesión de entrenamiento vacía en vivo y añade los ejercicios sobre la marcha mientras los realizas.
+                </p>
+              </div>
+            </div>
+          </Card>
+
+          {/* Opción B: Mis Rutinas Guardadas */}
+          <div className="space-y-4">
+            <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider ml-1">Iniciar con una de mis rutinas</h3>
+            {myRoutines.length === 0 ? (
+              <Card className="bg-zinc-950 border-white/5 p-8 text-center">
+                <Dumbbell className="h-10 w-10 text-gray-700 mx-auto mb-3" />
+                <h4 className="font-bold text-white mb-1">No tienes rutinas creadas</h4>
+                <p className="text-xs text-gray-400 mb-4 max-w-sm mx-auto">
+                  Diseña tus rutinas primero en la sección "Mis Rutinas" para cargarlas y empezar a entrenar rápidamente.
+                </p>
+                <a href="/dashboard/routines" className="inline-flex items-center gap-1.5 bg-primary text-black hover:bg-primary/90 font-bold px-4 py-2 rounded-sm text-xs transition-colors">
+                  Ir a Mis Rutinas
+                </a>
+              </Card>
+            ) : (
+              <div className="grid grid-cols-1 gap-3">
+                {myRoutines.map((routine) => (
+                  <Card key={routine.id} className="bg-zinc-950 border-white/5 hover:border-white/10 transition-colors p-4 flex items-center justify-between gap-4">
+                    <div className="min-w-0 flex-1">
+                      <h4 className="font-bold text-white truncate text-base">{routine.name}</h4>
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        {routine.routine_exercises?.length || 0} {routine.routine_exercises?.length === 1 ? 'ejercicio' : 'ejercicios'}
+                      </p>
+                    </div>
+                    <Button 
+                      onClick={() => startQuickRoutine(routine.id)}
+                      className="bg-primary text-black hover:bg-primary/90 font-bold h-9 text-xs shrink-0 px-4 cursor-pointer"
+                    >
+                      <Dumbbell className="h-3 w-3 mr-1" /> Preparar
+                    </Button>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 pb-20">
       {/* Resume Dialog / Banner */}
@@ -728,7 +882,7 @@ export const WorkoutSession = () => {
               )}
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] font-bold text-gray-500 uppercase tracking-widest">
                 <span className="text-primary px-2 py-0.5 bg-primary/10 rounded-full">
-                  {status === 'planning' ? 'Planificación' : 'En Vivo'}
+                  {isTemplateEditorMode ? 'Diseño de Plantilla' : (status === 'planning' ? 'Planificación' : 'En Vivo')}
                 </span>
                 {status === 'active' && (
                   <span className="text-white px-2 py-0.5 bg-white/5 border border-white/10 rounded-full font-extrabold normal-case">
@@ -743,7 +897,9 @@ export const WorkoutSession = () => {
                         {isNewRoutine ? 'Nueva Rutina' : 'Rutina Programada'} • <span className="text-gray-400 font-normal normal-case">{formatDateFriendly(selectedDate)}</span>
                       </>
                     ) : (
-                      isEditMode ? `Editando: ${routineName}` : (isNewRoutine ? 'Nueva Rutina - Hoy' : `Programado: ${creationDate}`)
+                      isTemplateEditorMode 
+                        ? (isEditMode ? `Modificando Plantilla` : 'Nueva Plantilla Personalizada') 
+                        : (isEditMode ? `Editando: ${routineName}` : (isNewRoutine ? 'Nueva Rutina - Hoy' : `Programado: ${creationDate}`))
                     )}
                   </span>
                 </div>
@@ -785,15 +941,44 @@ export const WorkoutSession = () => {
           <div className="flex gap-3 w-full sm:w-auto ml-auto">
             {status === 'planning' ? (
               <>
-                <Button variant="outline" className="flex-1 sm:flex-none sm:w-[130px]" onClick={saveRoutine}>
-                  <Save className="mr-2 h-4 w-4" /> {isEditMode ? 'Actualizar' : 'Programar'}
-                </Button>
-                <Button className="flex-1 sm:flex-none sm:w-[130px] bg-primary text-black font-bold hover:bg-primary/90" onClick={startWorkout}>
-                  <Play className="mr-2 h-4 w-4 fill-current" /> Iniciar
-                </Button>
+                {isTemplateEditorMode ? (
+                  <>
+                    <Button variant="ghost" className="flex-1 sm:flex-none text-gray-400 hover:text-white border border-white/5 hover:border-white/10" onClick={() => window.location.href = '/dashboard/routines'}>
+                      Volver
+                    </Button>
+                    <Button className="flex-1 sm:flex-none sm:w-[150px] bg-primary text-black font-bold hover:bg-primary/90" onClick={saveRoutine}>
+                      <Save className="mr-2 h-4 w-4" /> {isEditMode ? 'Actualizar Plantilla' : 'Guardar Plantilla'}
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button variant="outline" className="flex-1 sm:flex-none sm:w-[130px]" onClick={saveRoutine}>
+                      <Save className="mr-2 h-4 w-4" /> {isEditMode ? 'Actualizar' : 'Programar'}
+                    </Button>
+                    <Button className="flex-1 sm:flex-none sm:w-[130px] bg-primary text-black font-bold hover:bg-primary/90" onClick={startWorkout}>
+                      <Play className="mr-2 h-4 w-4 fill-current" /> Iniciar
+                    </Button>
+                  </>
+                )}
               </>
             ) : (
               <div className="flex gap-2 w-full sm:w-auto">
+                <Button 
+                  variant="outline" 
+                  className={`flex-1 sm:flex-none sm:w-[110px] font-bold transition-all ${isEditingActiveSession ? 'bg-primary text-black hover:bg-primary/90 border-primary' : 'text-gray-400 border-white/10 hover:bg-white/5 hover:text-white'}`}
+                  onClick={() => setIsEditingActiveSession(!isEditingActiveSession)}
+                  disabled={status === 'saving'}
+                >
+                  {isEditingActiveSession ? (
+                    <>
+                      <Check className="mr-1.5 h-4 w-4" /> Listo
+                    </>
+                  ) : (
+                    <>
+                      <Edit className="mr-1.5 h-4 w-4" /> Editar
+                    </>
+                  )}
+                </Button>
                 <Button variant="ghost" className="flex-1 sm:flex-none sm:w-[110px] text-gray-400 hover:text-red-400 border border-white/5 hover:border-red-500/20 hover:bg-red-500/10" onClick={discardActiveWorkout} disabled={status === 'saving'}>
                   Descartar
                 </Button>
@@ -844,19 +1029,21 @@ export const WorkoutSession = () => {
                     <Info className="h-4.5 w-4.5" />
                   )}
                 </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => {
-                    setReplacingExerciseIndex(exIdx);
-                    setShowExerciseSelector(true);
-                  }}
-                  className="h-8 w-8 rounded-full text-primary hover:text-primary hover:bg-primary/10 flex items-center justify-center shrink-0"
-                  title="Reemplazar Ejercicio"
-                >
-                  <RefreshCw className="h-4.5 w-4.5" />
-                </Button>
-                {status === 'planning' && (
+                {(status === 'planning' || isEditingActiveSession) && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => {
+                      setReplacingExerciseIndex(exIdx);
+                      setShowExerciseSelector(true);
+                    }}
+                    className="h-8 w-8 rounded-full text-primary hover:text-primary hover:bg-primary/10 flex items-center justify-center shrink-0"
+                    title="Reemplazar Ejercicio"
+                  >
+                    <RefreshCw className="h-4.5 w-4.5" />
+                  </Button>
+                )}
+                {(status === 'planning' || isEditingActiveSession) && (
                   <Button 
                     variant="ghost" 
                     size="icon" 
@@ -911,7 +1098,7 @@ export const WorkoutSession = () => {
                       </div>
                     </div>
                     <div className="col-span-4 text-center">Reps</div>
-                    <div className="col-span-2 text-center">Log</div>
+                    <div className="col-span-2 text-center">{(status === 'planning' || isEditingActiveSession) ? 'Quitar' : 'Log'}</div>
                 </div>
               {ex.sets.map((set, setIdx) => (
                 <div key={setIdx} className="grid grid-cols-12 gap-4 items-center mb-2">
@@ -929,7 +1116,7 @@ export const WorkoutSession = () => {
                     <Input type="number" value={set.reps} onChange={(e) => updateSet(exIdx, setIdx, 'reps', e.target.value)} className="text-center bg-black/40 h-10" placeholder="0" />
                   </div>
                   <div className="col-span-2 flex justify-center">
-                    {status === 'planning' ? (
+                    {(status === 'planning' || isEditingActiveSession) ? (
                       <button 
                         className="h-10 w-10 rounded-full border-2 border-white/10 flex items-center justify-center transition-all hover:bg-red-500/20 hover:border-red-500/50 text-gray-500 hover:text-red-500"
                         onClick={() => removeSet(exIdx, setIdx)}
@@ -947,18 +1134,20 @@ export const WorkoutSession = () => {
                   </div>
                 </div>
               ))}
-              <Button variant="ghost" className="w-full mt-4 border border-dashed border-white/10" onClick={() => {
-                const updated = [...sessionExercises];
-                updated[exIdx].sets.push({ weight: '', reps: '', completed: false });
-                setSessionExercises(updated);
-              }}>
-                + Serie
-              </Button>
+              {(status === 'planning' || isEditingActiveSession) && (
+                <Button variant="ghost" className="w-full mt-4 border border-dashed border-white/10" onClick={() => {
+                  const updated = [...sessionExercises];
+                  updated[exIdx].sets.push({ weight: '', reps: '', completed: false });
+                  setSessionExercises(updated);
+                }}>
+                  + Serie
+                </Button>
+              )}
             </CardContent>
           </Card>
         ))}
 
-        {!showExerciseSelector && (
+        {(status === 'planning' || isEditingActiveSession) && !showExerciseSelector && (
           <Button className="w-full h-16 bg-primary/5 border-2 border-dashed border-primary/20 text-primary hover:bg-primary hover:text-black hover:border-primary transition-all duration-300" onClick={() => setShowExerciseSelector(true)}>
             + Añadir Ejercicio
           </Button>

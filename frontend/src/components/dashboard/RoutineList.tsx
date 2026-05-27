@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
-import { Loader2, Dumbbell, Play, Edit2, Trash2, Plus } from 'lucide-react';
+import { Loader2, Dumbbell, Edit2, Trash2, Plus } from 'lucide-react';
 
 export const RoutineList = () => {
   const [routines, setRoutines] = useState<any[]>([]);
@@ -71,7 +71,7 @@ export const RoutineList = () => {
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-xl font-bold font-heading border-b border-[var(--color-border)] pb-2 flex-1">Mis Rutinas</h2>
         <a 
-          href="/dashboard/workout" 
+          href="/dashboard/workout?edit=true" 
           className="ml-4 flex items-center gap-2 bg-primary/10 text-primary border border-primary/50 px-4 py-2 rounded-sm text-sm font-semibold hover:bg-primary/20 transition-all"
         >
           <Plus className="h-4 w-4" />
@@ -85,7 +85,7 @@ export const RoutineList = () => {
           <CardTitle className="text-gray-400 mb-2">Sin Rutinas Programadas</CardTitle>
           <p className="text-gray-500 mb-6">Comienza creando tu primer plan de entrenamiento personalizado.</p>
           <a 
-            href="/dashboard/workout" 
+            href="/dashboard/workout?edit=true" 
             className="inline-flex items-center gap-2 bg-primary text-black px-6 py-3 rounded-sm font-bold hover:bg-primary/90 transition-all"
           >
             Crear Mi Primera Rutina
@@ -119,8 +119,8 @@ export const RoutineList = () => {
                     href={`/dashboard/workout?routineId=${routine.id}`} 
                     className="col-span-2 flex items-center justify-center gap-2 bg-primary text-black text-xs font-bold rounded-sm py-3 hover:bg-primary/90 transition-all"
                   >
-                    <Play className="h-3 w-3 fill-current" />
-                    INICIAR
+                    <Dumbbell className="h-3 w-3" />
+                    PREPARAR
                   </a>
                   <a 
                     href={`/dashboard/workout?routineId=${routine.id}&edit=true`} 

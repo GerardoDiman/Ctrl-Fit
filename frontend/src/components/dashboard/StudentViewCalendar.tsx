@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Play, Info } from 'lucide-react';
+import { Info, Dumbbell } from 'lucide-react';
 import { format, isSameDay, startOfWeek, startOfMonth, endOfWeek, endOfMonth } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { InteractiveCalendar } from '@/components/ui/InteractiveCalendar';
@@ -121,7 +121,7 @@ export function StudentViewCalendar() {
                       className="w-full bg-primary text-black font-bold h-9 text-xs"
                       onClick={() => window.location.href = `/dashboard/workout?routineId=${a.routines.id}&assignmentId=${a.id}`}
                     >
-                      <Play className="h-3 w-3 mr-2 fill-current" /> INICIAR
+                      <Dumbbell className="h-3.5 w-3.5 mr-2" /> PREPARAR
                     </Button>
                   </div>
                 </div>
