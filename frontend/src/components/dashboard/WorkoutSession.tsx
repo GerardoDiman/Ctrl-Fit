@@ -4,7 +4,7 @@ import { useAuth } from '@/lib/useAuth';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Plus, Trash2, Clock, Check, Save, Play, Square, Loader2, Calendar as CalendarIcon, X, RefreshCw } from 'lucide-react';
+import { Plus, Trash2, Clock, Check, Save, Play, Square, Loader2, Calendar as CalendarIcon, X, RefreshCw, Info, Dumbbell, Activity, Cpu } from 'lucide-react';
 import { DatePicker } from '@/components/ui/DatePicker';
 
 interface Set {
@@ -18,6 +18,22 @@ interface WorkoutExercise {
   name: string;
   sets: Set[];
   weightUnit?: 'kg' | 'lb';
+}
+
+interface HelpExerciseData {
+  name: string;
+  description: string | null;
+  image_url: string | null;
+  muscle_groups: {
+    name: string;
+    description: string | null;
+    image_url: string | null;
+  } | null;
+  machines: {
+    name: string;
+    description: string | null;
+    image_url: string | null;
+  } | null;
 }
 
 interface ExerciseOption {
@@ -46,6 +62,12 @@ export const WorkoutSession = () => {
   const [sessionExercises, setSessionExercises] = useState<WorkoutExercise[]>([]);
   const [replacingExerciseIndex, setReplacingExerciseIndex] = useState<number | null>(null);
   const [startTime, setStartTime] = useState<Date | null>(null);
+
+  // Help Modal States
+  const [showHelpModal, setShowHelpModal] = useState(false);
+  const [loadingHelpId, setLoadingHelpId] = useState<string | null>(null);
+  const [helpData, setHelpData] = useState<HelpExerciseData | null>(null);
+  const [activeHelpTab, setActiveHelpTab] = useState<'exercise' | 'machine' | 'muscle'>('exercise');
   const [elapsedTime, setElapsedTime] = useState(0);
   const [showExerciseSelector, setShowExerciseSelector] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -497,6 +519,36 @@ export const WorkoutSession = () => {
     }
   };
 
+  const fetchExerciseHelpData = async (exerciseId: string) => {
+    setLoadingHelpId(exerciseId);
+    try {
+      const { data, error } = await supabase
+        .from('exercises')
+        .select(`
+          name,
+          description,
+          image_url,
+          muscle_groups (name, description, image_url),
+          machines (name, description, image_url)
+        `)
+        .eq('id', exerciseId)
+        .single();
+      
+      if (!error && data) {
+        setHelpData(data as any);
+        setActiveHelpTab('exercise');
+        setShowHelpModal(true);
+      } else {
+        alert("No se pudo cargar la información de ayuda de este ejercicio.");
+      }
+    } catch (e) {
+      console.error('Error fetching exercise help data:', e);
+      alert("Error al conectar con la base de datos.");
+    } finally {
+      setLoadingHelpId(null);
+    }
+  };
+
   const fetchLastWeightsForExercise = async (userId: string, exerciseId: string) => {
     try {
       const { data: userSessions } = await supabase
@@ -781,6 +833,20 @@ export const WorkoutSession = () => {
                 <Button
                   variant="ghost"
                   size="icon"
+                  onClick={() => fetchExerciseHelpData(ex.id)}
+                  disabled={loadingHelpId !== null}
+                  className="h-8 w-8 rounded-full text-gray-400 hover:text-white hover:bg-white/5 flex items-center justify-center shrink-0"
+                  title="Ayuda Visual e Información"
+                >
+                  {loadingHelpId === ex.id ? (
+                    <Loader2 className="h-4.5 w-4.5 animate-spin" />
+                  ) : (
+                    <Info className="h-4.5 w-4.5" />
+                  )}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
                   onClick={() => {
                     setReplacingExerciseIndex(exIdx);
                     setShowExerciseSelector(true);
@@ -984,6 +1050,170 @@ export const WorkoutSession = () => {
                   )}
                 </>
               )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Help Modal */}
+      {showHelpModal && helpData && (
+        <div className="fixed inset-0 bg-black/90 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <Card className="w-full max-w-lg border-primary/30 bg-zinc-950 shadow-[0_0_50px_rgba(var(--color-primary-rgb),0.1)]">
+            <CardHeader className="flex flex-row items-center justify-between py-4 px-6 border-b border-white/5">
+              <div>
+                <CardTitle className="text-lg font-bold text-white">Ayuda Visual e Información</CardTitle>
+                <CardDescription className="text-xs text-gray-400 mt-0.5">Detalles del catálogo para {helpData.name}</CardDescription>
+              </div>
+              <Button 
+                variant="ghost" 
+                size="icon"
+                onClick={() => {
+                  setShowHelpModal(false);
+                  setHelpData(null);
+                }}
+                className="h-8 w-8 rounded-full text-gray-500 hover:text-white hover:bg-white/5"
+              >
+                <X className="h-5 w-5" />
+              </Button>
+            </CardHeader>
+            <CardContent className="p-6 space-y-4">
+              {/* Tabs list selector */}
+              <div className="flex border-b border-white/5">
+                {(['exercise', 'machine', 'muscle'] as const).map((tab) => {
+                  const label = tab === 'exercise' ? 'Ejercicio' : tab === 'machine' ? 'Máquina' : 'Músculo';
+                  const active = activeHelpTab === tab;
+                  return (
+                    <button
+                      key={tab}
+                      type="button"
+                      onClick={() => setActiveHelpTab(tab)}
+                      className={`flex-1 py-2 text-xs font-bold border-b-2 transition-all capitalize ${
+                        active 
+                          ? 'border-primary text-primary bg-primary/5' 
+                          : 'border-transparent text-gray-400 hover:text-white'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Tab Content */}
+              <div className="space-y-4">
+                {activeHelpTab === 'exercise' && (
+                  <div className="space-y-4">
+                    {/* Exercise image or placeholder */}
+                    {helpData.image_url ? (
+                      <div className="relative group overflow-hidden rounded-lg border border-white/10 h-48 bg-black/40">
+                        <img 
+                          src={helpData.image_url} 
+                          alt={helpData.name} 
+                          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" 
+                        />
+                      </div>
+                    ) : (
+                      <div className="rounded-lg border border-white/5 border-dashed h-48 bg-gradient-to-b from-zinc-950 to-zinc-900 flex flex-col items-center justify-center gap-3 text-gray-500 relative overflow-hidden group">
+                        {/* Grid decorative lines */}
+                        <div className="absolute inset-0 bg-[linear-gradient(to_right,#8080800a_1px,transparent_1px),linear-gradient(to_bottom,#8080800a_1px,transparent_1px)] bg-[size:14px_24px] pointer-events-none" />
+                        <Dumbbell className="h-10 w-10 text-gray-600 transition-transform duration-300 group-hover:scale-110 group-hover:text-primary/55" />
+                        <div className="text-center z-10">
+                          <p className="text-xs font-bold text-gray-400">Sin Imagen de Referencia</p>
+                          <p className="text-[10px] text-gray-600 mt-1 max-w-[240px]">Puedes subir imágenes para este ejercicio desde la sección de administración del catálogo.</p>
+                        </div>
+                      </div>
+                    )}
+                    <div>
+                      <h4 className="font-bold text-white text-sm uppercase tracking-wider mb-1">{helpData.name}</h4>
+                      <p className="text-xs text-gray-400 leading-relaxed max-h-32 overflow-y-auto">
+                        {helpData.description || 'Sin descripción adicional para este ejercicio en el catálogo.'}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {activeHelpTab === 'machine' && (
+                  <div className="space-y-4">
+                    {helpData.machines ? (
+                      <>
+                        {helpData.machines.image_url ? (
+                          <div className="relative group overflow-hidden rounded-lg border border-white/10 h-48 bg-black/40">
+                            <img 
+                              src={helpData.machines.image_url} 
+                              alt={helpData.machines.name} 
+                              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" 
+                            />
+                          </div>
+                        ) : (
+                          <div className="rounded-lg border border-white/5 border-dashed h-48 bg-gradient-to-b from-zinc-950 to-zinc-900 flex flex-col items-center justify-center gap-3 text-gray-500 relative overflow-hidden group">
+                            <div className="absolute inset-0 bg-[linear-gradient(to_right,#8080800a_1px,transparent_1px),linear-gradient(to_bottom,#8080800a_1px,transparent_1px)] bg-[size:14px_24px] pointer-events-none" />
+                            <Cpu className="h-10 w-10 text-gray-600 transition-transform duration-300 group-hover:scale-110 group-hover:text-primary/55" />
+                            <div className="text-center z-10">
+                              <p className="text-xs font-bold text-gray-400">Sin Imagen de la Máquina</p>
+                              <p className="text-[10px] text-gray-600 mt-1 max-w-[240px]">Esta máquina no tiene una imagen asociada en el catálogo de equipamiento.</p>
+                            </div>
+                          </div>
+                        )}
+                        <div>
+                          <h4 className="font-bold text-white text-sm uppercase tracking-wider mb-1">Máquina: {helpData.machines.name}</h4>
+                          <p className="text-xs text-gray-400 leading-relaxed max-h-32 overflow-y-auto">
+                            {helpData.machines.description || 'Esta máquina no tiene una descripción detallada.'}
+                          </p>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="rounded-lg border border-white/5 bg-zinc-950/40 p-8 flex flex-col items-center justify-center gap-3 text-gray-500 min-h-[220px]">
+                        <Cpu className="h-8 w-8 text-gray-700" />
+                        <div className="text-center">
+                          <p className="text-xs font-bold text-gray-400">Peso Libre / Sin Máquina</p>
+                          <p className="text-[10px] text-gray-600 mt-1 max-w-[240px]">Este ejercicio no requiere una máquina o estación guiada del catálogo.</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {activeHelpTab === 'muscle' && (
+                  <div className="space-y-4">
+                    {helpData.muscle_groups ? (
+                      <>
+                        {helpData.muscle_groups.image_url ? (
+                          <div className="relative group overflow-hidden rounded-lg border border-white/10 h-48 bg-black/40">
+                            <img 
+                              src={helpData.muscle_groups.image_url} 
+                              alt={helpData.muscle_groups.name} 
+                              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" 
+                            />
+                          </div>
+                        ) : (
+                          <div className="rounded-lg border border-white/5 border-dashed h-48 bg-gradient-to-b from-zinc-950 to-zinc-900 flex flex-col items-center justify-center gap-3 text-gray-500 relative overflow-hidden group">
+                            <div className="absolute inset-0 bg-[linear-gradient(to_right,#8080800a_1px,transparent_1px),linear-gradient(to_bottom,#8080800a_1px,transparent_1px)] bg-[size:14px_24px] pointer-events-none" />
+                            <Activity className="h-10 w-10 text-gray-600 transition-transform duration-300 group-hover:scale-110 group-hover:text-primary/55" />
+                            <div className="text-center z-10">
+                              <p className="text-xs font-bold text-gray-400">Sin Imagen Anatómica</p>
+                              <p className="text-[10px] text-gray-600 mt-1 max-w-[240px]">No hay un mapa muscular asignado para este grupo muscular en el catálogo.</p>
+                            </div>
+                          </div>
+                        )}
+                        <div>
+                          <h4 className="font-bold text-white text-sm uppercase tracking-wider mb-1">Músculo Principal: {helpData.muscle_groups.name}</h4>
+                          <p className="text-xs text-gray-400 leading-relaxed max-h-32 overflow-y-auto">
+                            {helpData.muscle_groups.description || 'Este grupo muscular no tiene una descripción detallada en el catálogo.'}
+                          </p>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="rounded-lg border border-white/5 bg-zinc-950/40 p-8 flex flex-col items-center justify-center gap-3 text-gray-500 min-h-[220px]">
+                        <Activity className="h-8 w-8 text-gray-700" />
+                        <div className="text-center">
+                          <p className="text-xs font-bold text-gray-400">Sin Grupo Muscular Asignado</p>
+                          <p className="text-[10px] text-gray-600 mt-1 max-w-[240px]">Este ejercicio no tiene un grupo muscular principal especificado en el catálogo.</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             </CardContent>
           </Card>
         </div>
