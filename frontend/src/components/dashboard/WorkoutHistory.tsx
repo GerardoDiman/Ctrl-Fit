@@ -30,6 +30,7 @@ import { format, parseISO, differenceInMinutes } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { DatePicker } from '@/components/ui/DatePicker';
 import { TimePicker } from '@/components/ui/TimePicker';
+import { showAlert, showConfirm, showToast } from '@/lib/customAlert';
 
 interface Session {
   id: string;
@@ -408,13 +409,13 @@ export const WorkoutHistory = () => {
     setFormExercises(updated);
   };
 
-  const handleRemoveFormSet = (exIdx: number, setIdx: number) => {
+  const handleRemoveFormSet = async (exIdx: number, setIdx: number) => {
     const updated = [...formExercises];
     if (updated[exIdx].sets.length > 1) {
       updated[exIdx].sets = updated[exIdx].sets.filter((_, i) => i !== setIdx);
       setFormExercises(updated);
     } else {
-      alert('Debe haber al menos una serie. Si deseas quitar el ejercicio completo, usa el botón de eliminar arriba.');
+      await showAlert('Debe haber al menos una serie. Si deseas quitar el ejercicio completo, usa el botón de eliminar arriba.', 'Atención', 'warning');
     }
   };
 
@@ -428,9 +429,9 @@ export const WorkoutHistory = () => {
     setFormExercises(formExercises.filter((_, i) => i !== exIdx));
   };
 
-  const handleAddFormExercise = (ex: ExerciseOption) => {
+  const handleAddFormExercise = async (ex: ExerciseOption) => {
     if (formExercises.some((fe, idx) => fe.exerciseId === ex.id && idx !== replacingExerciseIndex)) {
-      alert('Este ejercicio ya está agregado en la sesión.');
+      await showAlert('Este ejercicio ya está agregado en la sesión.', 'Ejercicio Duplicado', 'warning');
       return;
     }
 
@@ -480,11 +481,11 @@ export const WorkoutHistory = () => {
         setActiveHelpTab('exercise');
         setShowHelpModal(true);
       } else {
-        alert("No se pudo cargar la información de ayuda de este ejercicio.");
+        await showAlert("No se pudo cargar la información de ayuda de este ejercicio.", "Ayuda de Ejercicio", "warning");
       }
     } catch (e) {
       console.error('Error fetching exercise help data:', e);
-      alert("Error al conectar con la base de datos.");
+      await showAlert("Error al conectar con la base de datos.", "Error de Conexión", "error");
     } finally {
       setLoadingHelpId(null);
     }
@@ -512,7 +513,7 @@ export const WorkoutHistory = () => {
   const handleSaveEdit = async () => {
     if (!selectedSession || !userId) return;
     if (!formName.trim() || !formDate || !formStartTime || !formEndTime) {
-      alert('Por favor, rellena todos los campos obligatorios.');
+      await showAlert('Por favor, rellena todos los campos obligatorios.', 'Campos Requeridos', 'warning');
       return;
     }
 
@@ -521,7 +522,7 @@ export const WorkoutHistory = () => {
       const endObj = combineDateAndTime(formDate, formEndTime);
 
       if (endObj < startObj) {
-        alert('La hora de fin no puede ser anterior a la hora de inicio.');
+        await showAlert('La hora de fin no puede ser anterior a la hora de inicio.', 'Horas Inválidas', 'warning');
         return;
       }
 
@@ -566,14 +567,14 @@ export const WorkoutHistory = () => {
       await fetchData(userId);
     } catch (e) {
       console.error('Error saving session edit:', e);
-      alert('Error al guardar los cambios.');
+      await showAlert('Error al guardar los cambios.', 'Error', 'error');
     }
   };
 
   // Delete Completed Session
   const handleDeleteSession = async (sessionId: string) => {
     if (!userId) return;
-    if (!window.confirm('¿Estás seguro de que deseas eliminar este entrenamiento permanentemente de tu historial?')) return;
+    if (!await showConfirm('¿Estás seguro de que deseas eliminar este entrenamiento permanentemente de tu historial?', 'Eliminar Entrenamiento', 'danger', 'ELIMINAR', 'CANCELAR')) return;
 
     try {
       // Buscar la sesión en el estado local para ver si tiene una asignación vinculada
@@ -607,7 +608,7 @@ export const WorkoutHistory = () => {
       await fetchData(userId);
     } catch (e) {
       console.error('Error deleting session:', e);
-      alert('Error al eliminar la sesión de entrenamiento.');
+      await showAlert('Error al eliminar la sesión de entrenamiento.', 'Error', 'error');
     }
   };
 
@@ -645,7 +646,7 @@ export const WorkoutHistory = () => {
   const handleSaveManual = async () => {
     if (!userId) return;
     if (!formName.trim() || !formDate || !formStartTime || !formEndTime) {
-      alert('Por favor, completa los campos obligatorios.');
+      await showAlert('Por favor, completa los campos obligatorios.', 'Campos Requeridos', 'warning');
       return;
     }
 
@@ -654,7 +655,7 @@ export const WorkoutHistory = () => {
       const endObj = combineDateAndTime(formDate, formEndTime);
 
       if (endObj < startObj) {
-        alert('La hora de fin no puede ser anterior a la hora de inicio.');
+        await showAlert('La hora de fin no puede ser anterior a la hora de inicio.', 'Horas Inválidas', 'warning');
         return;
       }
 
@@ -698,7 +699,7 @@ export const WorkoutHistory = () => {
       await fetchData(userId);
     } catch (e) {
       console.error('Error saving manual session:', e);
-      alert('Error al registrar la sesión.');
+      await showAlert('Error al registrar la sesión.', 'Error', 'error');
     }
   };
 
@@ -723,7 +724,7 @@ export const WorkoutHistory = () => {
   const handleSaveCompleteAssignment = async () => {
     if (!selectedAssignment || !userId) return;
     if (!formDate || !formStartTime || !formEndTime) {
-      alert('Por favor, rellena las horas de entrenamiento.');
+      await showAlert('Por favor, rellena las horas de entrenamiento.', 'Campos Requeridos', 'warning');
       return;
     }
 
@@ -732,7 +733,7 @@ export const WorkoutHistory = () => {
       const endObj = combineDateAndTime(formDate, formEndTime);
 
       if (endObj < startObj) {
-        alert('La hora de fin no puede ser anterior a la hora de inicio.');
+        await showAlert('La hora de fin no puede ser anterior a la hora de inicio.', 'Horas Inválidas', 'warning');
         return;
       }
 
@@ -787,7 +788,7 @@ export const WorkoutHistory = () => {
       await fetchData(userId);
     } catch (e) {
       console.error('Error completing assignment:', e);
-      alert('Error al completar el entrenamiento.');
+      await showAlert('Error al completar el entrenamiento.', 'Error', 'error');
     }
   };
 

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Loader2, Dumbbell, Edit2, Trash2, Plus } from 'lucide-react';
+import { showAlert, showConfirm } from '@/lib/customAlert';
 
 export const RoutineList = () => {
   const [routines, setRoutines] = useState<any[]>([]);
@@ -37,7 +38,7 @@ export const RoutineList = () => {
   }, []);
 
   const handleDelete = async (id: string, name: string) => {
-    if (window.confirm(`¿Estás seguro de que deseas eliminar la rutina "${name}"? Esta acción no se puede deshacer.`)) {
+    if (await showConfirm(`¿Estás seguro de que deseas eliminar la rutina "${name}"? Esta acción no se puede deshacer.`, 'Eliminar Rutina', 'danger', 'ELIMINAR', 'CANCELAR')) {
       try {
         // First delete exercises
         await supabase.from('routine_exercises').delete().eq('routine_id', id);
@@ -49,7 +50,7 @@ export const RoutineList = () => {
         // Refresh list
         setRoutines(routines.filter(r => r.id !== id));
       } catch (error: any) {
-        alert('Error al eliminar la rutina: ' + error.message);
+        await showAlert('Error al eliminar la rutina: ' + error.message, 'Error', 'error');
       }
     }
   };

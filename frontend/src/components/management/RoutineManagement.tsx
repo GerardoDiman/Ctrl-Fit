@@ -5,6 +5,7 @@ import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Plus, Trash2, Edit2, Save, X, Search, Dumbbell, ArrowLeft, Loader2, ChevronUp, ChevronDown, Copy } from 'lucide-react';
+import { showAlert, showConfirm } from '@/lib/customAlert';
 
 interface RoutineExercise {
   id: string;
@@ -222,11 +223,11 @@ export function RoutineManagement() {
 
   const handleSave = async () => {
     if (!routineName.trim()) {
-      alert('La rutina necesita un nombre.');
+      await showAlert('La rutina necesita un nombre.', 'Campo Requerido', 'warning');
       return;
     }
     if (selectedExercises.length === 0) {
-      alert('Añade al menos un ejercicio.');
+      await showAlert('Añade al menos un ejercicio.', 'Sin Ejercicios', 'warning');
       return;
     }
 
@@ -282,14 +283,14 @@ export function RoutineManagement() {
       fetchTemplates();
     } catch (err) {
       console.error(err);
-      alert('Error al guardar la rutina.');
+      await showAlert('Error al guardar la rutina.', 'Error', 'error');
     } finally {
       setSaving(false);
     }
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('¿Seguro que quieres eliminar esta rutina prefabricada?')) return;
+    if (!await showConfirm('¿Seguro que quieres eliminar esta rutina prefabricada?', 'Eliminar Rutina', 'danger', 'ELIMINAR', 'CANCELAR')) return;
     
     await supabase.from('routine_exercises').delete().eq('routine_id', id);
     const { error } = await supabase.from('routines').delete().eq('id', id);

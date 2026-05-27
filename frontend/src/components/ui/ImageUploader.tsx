@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Upload, X, Image as ImageIcon } from 'lucide-react';
 import { Button } from './button';
+import { showAlert } from '@/lib/customAlert';
 
 interface ImageUploaderProps {
   value: string | null; // URL de la imagen remota existente
@@ -105,7 +106,7 @@ export function ImageUploader({ value, onChange, onRemove, className = '' }: Ima
           onChange(file); // Fallback si falla
         }
       } else {
-        alert("Por favor, selecciona únicamente archivos de imagen.");
+        await showAlert("Por favor, selecciona únicamente archivos de imagen.", "Tipo de Archivo Inválido", "warning");
       }
     }
   };
@@ -127,7 +128,7 @@ export function ImageUploader({ value, onChange, onRemove, className = '' }: Ima
           onChange(file);
         }
       } else {
-        alert("Por favor, selecciona únicamente archivos de imagen.");
+        await showAlert("Por favor, selecciona únicamente archivos de imagen.", "Tipo de Archivo Inválido", "warning");
       }
     }
   };

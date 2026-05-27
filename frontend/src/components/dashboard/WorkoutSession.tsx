@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Plus, Trash2, Clock, Check, Save, Play, Square, Loader2, Calendar as CalendarIcon, X, RefreshCw, Info, Dumbbell, Activity, Cpu, ArrowLeft, Edit } from 'lucide-react';
 import { DatePicker } from '@/components/ui/DatePicker';
+import { showAlert, showConfirm, showToast } from '@/lib/customAlert';
 
 interface Set {
   weight: string;
@@ -338,9 +339,9 @@ export const WorkoutSession = () => {
     return `${hrs > 0 ? hrs + ':' : ''}${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const startWorkout = () => {
+  const startWorkout = async () => {
     if (sessionExercises.length === 0) {
-      alert('Programa al menos un ejercicio antes de empezar.');
+      await showAlert('Programa al menos un ejercicio antes de empezar.', 'Atención', 'warning');
       return;
     }
     
@@ -398,7 +399,7 @@ export const WorkoutSession = () => {
       }
     } catch (err) {
       console.error('Error al cargar rutina rápida:', err);
-      alert('Error al cargar la rutina.');
+      await showAlert('Error al cargar la rutina.', 'Error', 'error');
     }
   };
 
@@ -423,8 +424,8 @@ export const WorkoutSession = () => {
     setPendingWorkout(null);
   };
 
-  const discardActiveWorkout = () => {
-    if (window.confirm('¿Estás seguro de que deseas descartar el entrenamiento actual? Todo el progreso de esta sesión se perderá.')) {
+  const discardActiveWorkout = async () => {
+    if (await showConfirm('¿Estás seguro de que deseas descartar el entrenamiento actual? Todo el progreso de esta sesión se perderá.', 'Descartar Entrenamiento', 'danger', 'DESCARTAR', 'CANCELAR')) {
       localStorage.removeItem('ctrlfit_active_workout');
       setStatus('planning');
       setStartTime(null);
@@ -435,7 +436,7 @@ export const WorkoutSession = () => {
 
   const saveRoutine = async () => {
     if (sessionExercises.length === 0) {
-      alert('Agrega ejercicios para guardar la rutina.');
+      await showAlert('Agrega ejercicios para guardar la rutina.', 'Rutina Vacía', 'warning');
       return;
     }
     
@@ -504,17 +505,26 @@ export const WorkoutSession = () => {
         throw exercisesError;
       }
 
-      alert(isEditMode ? 'Rutina actualizada correctamente.' : 'Rutina guardada correctamente.');
+      await showAlert(isEditMode ? 'Rutina actualizada correctamente.' : 'Rutina guardada correctamente.', 'Éxito', 'success');
       localStorage.removeItem('ctrlfit_active_workout');
       window.location.href = '/dashboard';
     } catch (error) {
       console.error('Error completo en saveRoutine:', error);
-      alert('Error al guardar: ' + (error as any).message);
+      await showAlert('Error al guardar: ' + (error as any).message, 'Error de Guardado', 'error');
       setStatus('planning');
     }
   };
 
   const finishWorkout = async () => {
+    const confirm = await showConfirm(
+      '¿Estás seguro de que deseas finalizar tu entrenamiento de hoy y guardar tu progreso?',
+      'Finalizar Entrenamiento',
+      'question',
+      'SÍ, FINALIZAR',
+      'CANCELAR'
+    );
+    if (!confirm) return;
+
     setStatus('saving');
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -596,7 +606,7 @@ export const WorkoutSession = () => {
       setShowExerciseSelector(false);
     } catch (error) {
       console.error('Error creating exercise:', error);
-      alert('Error al crear el ejercicio. Verifica que tengas permisos de entrenador.');
+      await showAlert('Error al crear el ejercicio. Verifica que tengas permisos de entrenador.', 'Error de Permiso', 'error');
     }
   };
 
@@ -620,11 +630,11 @@ export const WorkoutSession = () => {
         setActiveHelpTab('exercise');
         setShowHelpModal(true);
       } else {
-        alert("No se pudo cargar la información de ayuda de este ejercicio.");
+        await showAlert("No se pudo cargar la información de ayuda de este ejercicio.", "Ayuda de Ejercicio", "warning");
       }
     } catch (e) {
       console.error('Error fetching exercise help data:', e);
-      alert("Error al conectar con la base de datos.");
+      await showAlert("Error al conectar con la base de datos.", "Error de Conexión", "error");
     } finally {
       setLoadingHelpId(null);
     }
@@ -717,7 +727,7 @@ export const WorkoutSession = () => {
     setSessionExercises(updated);
   };
 
-  const removeSet = (exIdx: number, sIdx: number) => {
+  const removeSet = async (exIdx: number, sIdx: number) => {
     const updated = [...sessionExercises];
     if (updated[exIdx].sets.length > 1) {
       const exercise = { ...updated[exIdx] };
@@ -725,7 +735,7 @@ export const WorkoutSession = () => {
       updated[exIdx] = exercise;
       setSessionExercises(updated);
     } else {
-      alert('Un ejercicio debe tener al menos una serie. Si deseas quitar el ejercicio completo, usa el botón de eliminar de arriba.');
+      await showAlert('Un ejercicio debe tener al menos una serie. Si deseas quitar el ejercicio completo, usa el botón de eliminar de arriba.', 'Atención', 'warning');
     }
   };
 
@@ -1047,8 +1057,8 @@ export const WorkoutSession = () => {
                   <Button 
                     variant="ghost" 
                     size="icon" 
-                    onClick={() => {
-                      if (window.confirm('¿Estás seguro de que deseas eliminar este ejercicio de la rutina?')) {
+                    onClick={async () => {
+                      if (await showConfirm('¿Estás seguro de que deseas eliminar este ejercicio de la rutina?', 'Eliminar Ejercicio', 'danger', 'ELIMINAR', 'CANCELAR')) {
                         setSessionExercises(sessionExercises.filter((_, i) => i !== exIdx));
                       }
                     }}

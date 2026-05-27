@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Plus, Trash2, Edit2, Check, X, Search, Dumbbell, Layers, Cpu, Settings, ScrollText, User, ArrowUpDown } from 'lucide-react';
 import { RoutineManagement } from './RoutineManagement';
 import { StudentManagement } from './StudentManagement';
+import { showAlert, showConfirm } from '@/lib/customAlert';
 import { CatalogList } from './CatalogList';
 import { FormSelect } from '@/components/FormSelect';
 import { ImageUploader } from '@/components/ui/ImageUploader';
@@ -90,7 +91,7 @@ export function ManagementDashboard() {
       return data.publicUrl;
     } catch (e) {
       console.error('Error al subir la imagen:', e);
-      alert('Error al subir la imagen al servidor.');
+      await showAlert('Error al subir la imagen al servidor.', 'Error de Carga', 'error');
       return null;
     }
   };
@@ -191,7 +192,7 @@ export function ManagementDashboard() {
   };
 
   const handleDelete = async (table: string, id: string) => {
-    if (!confirm('¿Estás seguro de eliminar este elemento?')) return;
+    if (!await showConfirm('¿Estás seguro de eliminar este elemento?', 'Eliminar Elemento', 'danger', 'ELIMINAR', 'CANCELAR')) return;
     
     // 1. Buscar el elemento para capturar la URL antes de eliminar de DB
     let itemToDelete = null;

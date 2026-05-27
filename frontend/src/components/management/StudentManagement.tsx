@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Search, UserPlus, Calendar as CalendarIcon, ChevronRight, User, Trash2, ArrowLeft } from 'lucide-react';
 import { RoutineCalendar } from './RoutineCalendar';
+import { showAlert, showConfirm } from '@/lib/customAlert';
 
 export function StudentManagement() {
   const { user, profile, loading: authLoading } = useAuth();
@@ -81,12 +82,12 @@ export function StudentManagement() {
       setSearchTerm('');
     } else {
       console.error("Error linking student:", error);
-      alert(`No se pudo vincular al estudiante: ${error.message}`);
+      await showAlert(`No se pudo vincular al estudiante: ${error.message}`, 'Error de Vinculación', 'error');
     }
   };
 
   const unlinkStudent = async (studentId: string) => {
-    if (!confirm('¿Estás seguro de quitar a este estudiante de tu lista?')) return;
+    if (!await showConfirm('¿Estás seguro de quitar a este estudiante de tu lista?', 'Desvincular Estudiante', 'danger', 'DESVINCULAR', 'CANCELAR')) return;
     
     const { error } = await supabase
       .from('profiles')
@@ -98,7 +99,7 @@ export function StudentManagement() {
       if (selectedStudent?.id === studentId) setSelectedStudent(null);
     } else {
       console.error("Error unlinking student:", error);
-      alert(`No se pudo desvincular al estudiante: ${error.message}`);
+      await showAlert(`No se pudo desvincular al estudiante: ${error.message}`, 'Error de Desvinculación', 'error');
     }
   };
 
