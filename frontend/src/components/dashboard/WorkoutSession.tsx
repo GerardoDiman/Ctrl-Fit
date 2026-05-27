@@ -4,7 +4,7 @@ import { useAuth } from '@/lib/useAuth';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Plus, Trash2, Clock, Check, Save, Play, Square, Loader2, Calendar as CalendarIcon, X, RefreshCw, Info, Dumbbell, Activity, Cpu, ArrowLeft, Edit } from 'lucide-react';
+import { Plus, Trash2, Clock, Check, Save, Play, Square, Loader2, Calendar as CalendarIcon, X, RefreshCw, Info, Dumbbell, Activity, Cpu, ArrowLeft, Edit, XCircle } from 'lucide-react';
 import { DatePicker } from '@/components/ui/DatePicker';
 import { showAlert, showConfirm, showToast } from '@/lib/customAlert';
 
@@ -972,10 +972,10 @@ export const WorkoutSession = () => {
                 )}
               </>
             ) : (
-              <div className="flex gap-2 w-full sm:w-auto">
+              <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 w-full sm:w-auto">
                 <Button 
                   variant="outline" 
-                  className={`flex-1 sm:flex-none sm:w-[110px] font-bold transition-all ${isEditingActiveSession ? 'bg-primary text-black hover:bg-primary/90 border-primary' : 'text-gray-400 border-white/10 hover:bg-white/5 hover:text-white'}`}
+                  className={`font-bold transition-all w-full sm:w-[120px] ${isEditingActiveSession ? 'bg-primary text-black hover:bg-primary/90 border-primary' : 'text-gray-400 border-white/10 hover:bg-white/5 hover:text-white'}`}
                   onClick={() => setIsEditingActiveSession(!isEditingActiveSession)}
                   disabled={status === 'saving'}
                 >
@@ -989,10 +989,10 @@ export const WorkoutSession = () => {
                     </>
                   )}
                 </Button>
-                <Button variant="ghost" className="flex-1 sm:flex-none sm:w-[110px] text-gray-400 hover:text-red-400 border border-white/5 hover:border-red-500/20 hover:bg-red-500/10" onClick={discardActiveWorkout} disabled={status === 'saving'}>
-                  Descartar
+                <Button variant="ghost" className="border border-white/5 hover:border-red-500/20 hover:bg-red-500/10 text-gray-400 hover:text-red-400 w-full sm:w-[120px]" onClick={discardActiveWorkout} disabled={status === 'saving'}>
+                  <XCircle className="mr-1.5 h-4.5 w-4.5" /> Descartar
                 </Button>
-                <Button className="flex-1 sm:flex-none sm:w-[130px] bg-red-600 hover:bg-red-700 text-white font-bold" onClick={finishWorkout} disabled={status === 'saving'}>
+                <Button className="col-span-2 sm:col-span-1 bg-red-600 hover:bg-red-700 text-white font-bold w-full sm:w-[130px]" onClick={finishWorkout} disabled={status === 'saving'}>
                   {status === 'saving' ? <Loader2 className="animate-spin mr-2" /> : <Square className="mr-2 h-4 w-4 fill-current" />}
                   Finalizar
                 </Button>
